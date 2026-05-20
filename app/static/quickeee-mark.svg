@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Quickeee Luxury Stylist Concierge mark</title>
+  <desc id="desc">A refined Q monogram with a brass needle accent.</desc>
+  <defs>
+    <linearGradient id="paper" x1="32" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fffaf1"/>
+      <stop offset="1" stop-color="#e8dfd0"/>
+    </linearGradient>
+    <linearGradient id="brass" x1="76" y1="48" x2="196" y2="220" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c08b52"/>
+      <stop offset="1" stop-color="#7c4f27"/>
+    </linearGradient>
+    <filter id="softShadow" x="-18%" y="-18%" width="136%" height="136%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#171510" flood-opacity=".18"/>
+    </filter>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="#171510"/>
+  <path d="M27 52c52-17 91-23 145-18 25 2 44 10 57 22v148c-52 18-96 23-150 16-23-3-40-11-52-24V52Z" fill="url(#paper)" filter="url(#softShadow)"/>
+  <path d="M129 191c-39 0-68-27-68-64 0-38 29-66 69-66s68 28 68 66c0 17-6 32-16 43l20 24-27 2-12-14c-10 6-21 9-34 9Zm1-27c22 0 36-15 36-37 0-23-14-39-36-39s-36 16-36 39c0 22 14 37 36 37Z" fill="#171510"/>
+  <path d="M139 145l60 66" stroke="url(#brass)" stroke-width="14" stroke-linecap="round"/>
+  <path d="M184 76h28M198 62v28" stroke="#9a6530" stroke-width="8" stroke-linecap="round"/>
+</svg>

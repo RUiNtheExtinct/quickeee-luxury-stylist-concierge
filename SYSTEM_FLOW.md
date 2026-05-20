@@ -24,6 +24,7 @@ flowchart TD
     P --> R
     Q --> R
     R --> S["Concierge UI<br/>Atelier + Engineer modes"]
+    S --> W["Paginated inventory preview<br/>lazy-loaded in 16-item chunks"]
     R --> V["Swagger API demo"]
     R --> T["Cache write for similar future prompts"]
 ```

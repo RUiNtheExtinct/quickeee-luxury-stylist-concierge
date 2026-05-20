@@ -26,6 +26,8 @@ curl -X POST https://quickeee-luxury-stylist.onrender.com/api/v1/style-me \
 - `data/catalog.scraped.sample.json` is a representative live scraper output from public apparel sources.
 - `data/catalog.seed.json` is the stable 362-item deploy/demo catalog used by the hosted service.
 - The UI has a default Atelier mode for normal reviewers and an Engineer mode for agent trace, cache state, vector backend, and raw response JSON.
+- The inventory preview is lazy-loaded in 16-item chunks, and cards use fixed image/info regions for consistent sizing across breakpoints.
+- The website includes a custom SVG logo, PNG favicons, and a web manifest.
 - `POST /api/v1/style-me` includes a lightweight free-tier rate limit of `30` requests per minute per IP by default.
 
 ## Documentation

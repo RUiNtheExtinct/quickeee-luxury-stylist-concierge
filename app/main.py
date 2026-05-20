@@ -78,8 +78,11 @@ async def style_me(request: StyleRequest, http_request: Request) -> StyleRespons
 
 
 @app.get("/api/v1/catalog", response_model=list[CatalogItem])
-async def catalog(limit: int = 24) -> list[CatalogItem]:
-    return container.catalog.load()[: max(1, min(limit, 100))]
+async def catalog(limit: int = 24, offset: int = 0) -> list[CatalogItem]:
+    items = container.catalog.load()
+    safe_limit = max(1, min(limit, 100))
+    safe_offset = max(0, offset)
+    return items[safe_offset : safe_offset + safe_limit]
 
 
 def enforce_rate_limit(request: Request) -> None:

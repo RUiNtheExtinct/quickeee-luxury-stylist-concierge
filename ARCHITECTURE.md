@@ -110,7 +110,7 @@ Response:
 
 ### UI
 
-The app serves a concierge console at `/`. It is not a mock: the form calls the live API, renders returned products, shows the total, and displays the agent trace. This gives the reviewer a stronger demo than Swagger alone while preserving the required API path.
+The app serves a concierge console at `/`. It is not a mock: the form calls the live API, renders returned products, shows the total, and displays the agent trace in Engineer mode. The inventory preview is paginated with `limit` and `offset`, then lazy-loaded in the browser so larger seed catalogs do not force the page to render every product at once. The UI also ships a custom SVG brand mark plus generated PNG favicons under `app/static/icons/`.
 
 ## Deployment Choices
 

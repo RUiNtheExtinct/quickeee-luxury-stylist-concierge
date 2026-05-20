@@ -4,6 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Quickeee Luxury Stylist Concierge</title>
+    <link rel="icon" href="/static/quickeee-mark.svg" type="image/svg+xml" />
+    <link rel="icon" href="/static/icons/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/static/site.webmanifest" />
     <link rel="stylesheet" href="/static/styles.css" />
     <script defer src="/static/vendor/lucide.js"></script>
   </head>
@@ -12,7 +16,7 @@
       <section class="studio" aria-label="Stylist console">
         <div class="topbar">
           <div class="brandmark">
-            <span class="monogram">Q</span>
+            <img class="brand-logo" src="/static/quickeee-mark.svg" alt="Quickeee" width="68" height="68" />
             <div>
               <p>Quickeee</p>
               <strong>Luxury Stylist Concierge</strong>
@@ -168,10 +172,19 @@
 
       <section class="inventory-rail" aria-label="Catalog preview">
         <div class="rail-heading">
-          <p>Indexed inventory</p>
-          <span>Expanded live-ready seed catalog</span>
+          <div>
+            <p>Indexed inventory</p>
+            <span id="rail-count">Showing 0 items</span>
+          </div>
+          <span>Lazy-loaded seed catalog</span>
         </div>
         <div id="rail" class="rail"></div>
+        <div class="rail-actions">
+          <button id="load-more" type="button">
+            <i data-lucide="rows-3"></i>
+            <span>Load more inventory</span>
+          </button>
+        </div>
       </section>
     </main>
 
