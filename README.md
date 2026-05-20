@@ -95,7 +95,7 @@ It uses randomized user agents, polite jitter, normalized Shopify product feeds,
 
 ## Free Deployment Strategy
 
-Default deploy path uses one Render web service with the local JSON vector fallback and local FastEmbed embeddings. That keeps the app deployable without paying for a hosted database or embedding API. For a stronger production-style demo, point the same app at a free Qdrant Cloud cluster:
+Default deploy path uses one Render web service with Qdrant Cloud free tier, local FastEmbed embeddings, and Groq for hosted stylist notes. The local JSON vector store and deterministic stylist remain as fallback modes for zero-key demos.
 
 ```env
 EMBEDDING_PROVIDER=fastembed
@@ -108,15 +108,10 @@ VECTOR_BACKEND=qdrant
 QDRANT_URL=https://your-cluster-url
 QDRANT_API_KEY=your-key
 QDRANT_COLLECTION=quickeee_catalog
+QDRANT_RECREATE_ON_STARTUP=false
 ```
 
-The LLM layer is also frugal by default:
-
-```env
-LLM_PROVIDER=local
-```
-
-For a hosted model, use any OpenAI-compatible provider:
+The hosted model uses Groq's OpenAI-compatible API:
 
 ```env
 LLM_PROVIDER=groq

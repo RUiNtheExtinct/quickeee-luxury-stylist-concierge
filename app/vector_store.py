@@ -128,6 +128,7 @@ class QdrantVectorStore:
         async with httpx.AsyncClient(timeout=30) as client:
             collection_url = f"{self.url}/collections/{self.collection}"
             response = await client.get(collection_url, headers=self._headers)
+            should_upsert = True
             if response.status_code == 404:
                 await self._create_collection(client, collection_url)
             elif response.status_code >= 400:
@@ -136,6 +137,20 @@ class QdrantVectorStore:
                 delete_response = await client.delete(collection_url, headers=self._headers)
                 delete_response.raise_for_status()
                 await self._create_collection(client, collection_url)
+            else:
+                await self._ensure_payload_indexes(client, collection_url)
+                count_response = await client.post(
+                    f"{collection_url}/points/count",
+                    headers=self._headers,
+                    json={"exact": True},
+                )
+                count_response.raise_for_status()
+                count = count_response.json().get("result", {}).get("count", 0)
+                should_upsert = count < len(items)
+
+            if not should_upsert:
+                logger.info("Qdrant collection %s already has %s indexed items", self.collection, len(items))
+                return
 
             points = []
             for idx, item in enumerate(items):
@@ -155,6 +170,7 @@ class QdrantVectorStore:
                 json={"points": points},
             )
             upsert_response.raise_for_status()
+            await self._ensure_payload_indexes(client, collection_url)
             logger.info("Indexed %s catalog items into Qdrant collection %s", len(points), self.collection)
 
     async def _create_collection(self, client: httpx.AsyncClient, collection_url: str) -> None:
@@ -164,6 +180,22 @@ class QdrantVectorStore:
         }
         create_response = await client.put(collection_url, headers=self._headers, json=create_payload)
         create_response.raise_for_status()
+
+    async def _ensure_payload_indexes(self, client: httpx.AsyncClient, collection_url: str) -> None:
+        indexes = {
+            "category": "keyword",
+            "color": "keyword",
+            "price": "float",
+        }
+        for field_name, field_schema in indexes.items():
+            response = await client.put(
+                f"{collection_url}/index",
+                headers=self._headers,
+                params={"wait": "true"},
+                json={"field_name": field_name, "field_schema": field_schema},
+            )
+            if response.status_code not in {200, 409}:
+                response.raise_for_status()
 
     def _collection_matches_embedder(self, collection_response: dict[str, Any]) -> bool:
         vectors = collection_response.get("result", {}).get("config", {}).get("params", {}).get("vectors", {})

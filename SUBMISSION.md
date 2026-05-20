@@ -20,10 +20,10 @@ curl -X POST https://quickeee-luxury-stylist.onrender.com/api/v1/style-me \
 
 ## Notes For Reviewers
 
-- The public Render deployment uses the frugal `local_json` vector backend so it can stay on a free web service without a paid vector database.
+- The public Render deployment uses Qdrant Cloud for vector memory and Groq for hosted stylist notes.
 - Retrieval uses FastEmbed with `BAAI/bge-small-en-v1.5` locally, so embeddings are model-backed without an embedding API bill.
 - The same code supports Qdrant via Docker Compose or Qdrant Cloud by changing environment variables.
-- The app intentionally works without an LLM key. If a Groq/OpenAI-compatible key is configured, only compact selected item facts are sent to the LLM after retrieval.
+- Only compact selected item facts are sent to Groq after retrieval; the full catalog is never sent to the LLM.
 - `data/catalog.scraped.sample.json` is a representative live scraper output from public apparel sources.
 - `data/catalog.seed.json` is the stable 410-item deploy/demo catalog used by the hosted service.
 - The UI has a default Atelier mode for normal reviewers and an Engineer mode for agent trace, cache state, vector backend, embedding model, LLM provider, and raw response JSON.

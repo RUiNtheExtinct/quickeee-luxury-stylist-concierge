@@ -120,11 +120,18 @@ The app serves a concierge console at `/`. It is not a mock: the form calls the 
 
 ### Free Hosted Demo
 
-`render.yaml` deploys a single Docker web service using `VECTOR_BACKEND=local_json`. That avoids paying for a hosted vector DB and keeps the public demo simple.
+`render.yaml` deploys a single Docker web service using Qdrant Cloud free tier for vector memory and Groq for hosted stylist notes. FastEmbed still runs locally in the app, so embedding generation does not require a paid embedding API.
 
-### Free Production-Style Upgrade
+### Zero-Key Local Fallback
 
-For a more realistic hosted vector DB, use Qdrant Cloud free tier and set:
+For a zero-service local fallback, set:
+
+```env
+VECTOR_BACKEND=local_json
+LLM_PROVIDER=local
+```
+
+For Qdrant Cloud, set:
 
 ```env
 VECTOR_BACKEND=qdrant
