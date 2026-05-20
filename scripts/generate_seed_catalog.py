@@ -139,24 +139,37 @@ def build_from_live_scrape() -> list[dict] | None:
     if not live_path.exists():
         return None
     live_items = json.loads(live_path.read_text())
-    live_items = [item for item in live_items if "placehold.co" not in item.get("image_url", "")]
+    live_items = [item for item in live_items if has_usable_image(item)]
     tops = select_balanced(live_items, "top", 160, ["tee", "shirt", "polo", "henley", "popover", "sweater"])
     bottoms = select_balanced(live_items, "bottom", 120, ["pant", "trouser", "chino", "jean", "short"])
     if len(tops) < 100 or len(bottoms) < 80:
         return None
-    shoes = select_balanced(live_items, "shoe", 45, ["sneaker", "loafer", "sandal", "moc", "shoe", "boot"])
+    shoes = select_balanced(live_items, "shoe", 60, ["sneaker", "loafer", "sandal", "moc", "shoe", "boot"])
+    accessories = select_balanced(
+        live_items,
+        "accessory",
+        80,
+        ["belt", "bag", "tote", "cap", "hat", "beanie", "scarf", "sock", "charm", "wallet"],
+    )
     generated = build_items()
     if len(shoes) < 28:
         shoes = [item for item in generated if item["category"] == "shoe"]
-    accessories = [item for item in generated if item["category"] == "accessory"]
     return interleave_collections([tops, bottoms, shoes, accessories])
+
+
+def has_usable_image(item: dict) -> bool:
+    image_url = item.get("image_url", "")
+    if not image_url:
+        return False
+    blocked = ["placehold.co", "placeholder", "quickeee"]
+    return not any(term in image_url.lower() for term in blocked)
 
 
 def select_balanced(items: list[dict], category: str, target: int, preferred_terms: list[str]) -> list[dict]:
     brands = sorted({item["brand"] for item in items})
     picked: list[dict] = []
     seen: set[str] = set()
-    excluded_terms = {"dress", "skirt", "bodysuit", "legging", "care bundle", "cleaner", "insole", "laces", "sock"}
+    excluded_terms = {"dress", "skirt", "bodysuit", "legging", "care bundle", "cleaner", "insole", "laces"}
     per_brand = max(1, target // max(1, len(brands)))
     for brand in brands:
         candidates = [

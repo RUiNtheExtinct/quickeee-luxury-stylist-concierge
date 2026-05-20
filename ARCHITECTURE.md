@@ -29,7 +29,7 @@ The primary path reads Shopify product feeds because they expose clean product s
 - `material`
 - `tags`
 
-Scraper rate-limit handling is intentionally simple and frugal: randomized user agents, jittered delays, timeouts, and deduplication. `data/catalog.scraped.sample.json` stores a representative scraper run, and the checked-in 362-item seed catalog exists so the demo remains reliable even if a retailer blocks traffic during review.
+Scraper rate-limit handling is intentionally simple and frugal: randomized user agents, jittered delays, timeouts, and deduplication. `data/catalog.scraped.sample.json` stores a representative scraper run, and the checked-in 334-item seed catalog exists so the demo remains reliable even if a retailer blocks traffic during review.
 
 ### Vector Memory
 

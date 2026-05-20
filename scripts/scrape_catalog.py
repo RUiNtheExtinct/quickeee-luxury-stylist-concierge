@@ -79,6 +79,22 @@ BOTTOM_KEYWORDS = {
 }
 
 SHOE_KEYWORDS = {"shoe", "sneaker", "loafer", "boot", "sandal", "slide", "moc", "huarache", "oxford"}
+ACCESSORY_KEYWORDS = {
+    "accessory",
+    "accessories",
+    "bag",
+    "belt",
+    "beanie",
+    "cap",
+    "charm",
+    "cuff",
+    "hat",
+    "scarf",
+    "sock",
+    "socks",
+    "tote",
+    "wallet",
+}
 
 COLOR_WORDS = [
     "black",
@@ -141,12 +157,7 @@ def normalize_product(brand: dict[str, str], product: dict[str, Any]) -> Catalog
     if price <= 0:
         return None
 
-    images = product.get("images") or []
-    image_url = ""
-    if images:
-        image_url = images[0].get("src") or ""
-    if image_url.startswith("//"):
-        image_url = "https:" + image_url
+    image_url = choose_image_url(product)
 
     description = html_to_text(product.get("body_html", ""))
     handle = product.get("handle", "")
@@ -210,7 +221,41 @@ def classify(text: str) -> Category | None:
         return Category.bottom
     if any(keyword in text for keyword in SHOE_KEYWORDS):
         return Category.shoe
+    if any(keyword in text for keyword in ACCESSORY_KEYWORDS):
+        return Category.accessory
     return None
+
+
+def choose_image_url(product: dict[str, Any]) -> str:
+    images = product.get("images") or []
+    if not images:
+        return ""
+    ranked = sorted(images, key=image_rank, reverse=True)
+    image_url = ranked[0].get("src") or ""
+    if image_url.startswith("//"):
+        image_url = "https:" + image_url
+    return image_url
+
+
+def image_rank(image: dict[str, Any]) -> tuple[int, int]:
+    src = str(image.get("src") or "").lower()
+    alt = str(image.get("alt") or "").lower()
+    text = f"{src} {alt}"
+    score = 0
+    if "placehold.co" in text or "placeholder" in text:
+        score -= 100
+    if any(term in text for term in ["swatch", "fabric", "detail", "texture", "overhead_single"]):
+        score -= 12
+    if any(term in text for term in ["pair", "portrait", "pdp_01", "-1", "_1", "front", "angled"]):
+        score += 8
+    width = int(image.get("width") or 0)
+    height = int(image.get("height") or 0)
+    area = width * height
+    if width and height:
+        ratio = height / width
+        if 0.8 <= ratio <= 1.8:
+            score += 4
+    return score, area
 
 
 def extract_color(text: str) -> str:

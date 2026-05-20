@@ -18,7 +18,7 @@ const debugBackend = document.querySelector("#debug-backend");
 const debugCache = document.querySelector("#debug-cache");
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-const catalogPageSize = 16;
+const catalogPageSize = 100;
 let catalogTotal = 0;
 let catalogOffset = 0;
 let catalogLoading = false;

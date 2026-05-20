@@ -141,11 +141,13 @@ a {
   display: inline-grid;
   width: 44px;
   height: 44px;
+  flex: 0 0 44px;
+  aspect-ratio: 1;
   place-items: center;
   color: var(--ink);
   background: rgba(255, 250, 241, 0.66);
   border: 1px solid var(--line);
-  border-radius: 50%;
+  border-radius: 999px;
   cursor: pointer;
   transition: transform var(--fast), border-color var(--fast), background var(--fast);
 }

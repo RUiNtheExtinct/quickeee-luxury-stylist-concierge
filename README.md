@@ -16,7 +16,7 @@ An end-to-end Gen AI and data engineering assignment for a premium fashion conci
 
 - Scrapes public apparel catalogs from two Shopify-backed fashion brands.
 - Normalizes products into clean JSON: name, price, image URL, category, description, color, material, source.
-- Indexes 362 curated products into Qdrant locally through Docker Compose, or into a zero-service local vector fallback for free hosting.
+- Indexes 334 curated products into Qdrant locally through Docker Compose, or into a zero-service local vector fallback for free hosting.
 - Runs an agentic styling workflow with intent extraction, vector retrieval, reranking, semantic cache, rate limiting, and structured JSON output.
 - Serves a luxury concierge UI at `/` with default Atelier mode, reviewer-facing Engineer mode, lazy-loaded inventory preview, and a custom SVG/PNG brand mark.
 
@@ -133,7 +133,7 @@ app/
   vector_store.py   # Qdrant and local JSON vector implementations
   static/           # concierge UI, logo, favicons, vendored icons
 data/
-  catalog.seed.json # checked-in demo catalog, 362 tops/bottoms/shoes/accessories
+  catalog.seed.json # checked-in demo catalog, 334 tops/bottoms/shoes/accessories
   catalog.scraped.sample.json # scraper output sample from public apparel sites
 scripts/
   generate_seed_catalog.py
