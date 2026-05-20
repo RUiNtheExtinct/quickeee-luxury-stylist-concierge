@@ -1,0 +1,487 @@
+:root {
+  --ink: #181713;
+  --paper: #f5f0e7;
+  --vellum: #ede3d2;
+  --line: rgba(24, 23, 19, 0.16);
+  --brass: #a36f35;
+  --oxblood: #651f2a;
+  --marine: #19344d;
+  --moss: #596145;
+  --shadow: 0 22px 60px rgba(23, 20, 14, 0.16);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--paper);
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+  color: var(--ink);
+  font-family: "Avenir Next", "Gill Sans", "Trebuchet MS", sans-serif;
+  background:
+    linear-gradient(115deg, rgba(101, 31, 42, 0.12), transparent 34%),
+    linear-gradient(245deg, rgba(25, 52, 77, 0.16), transparent 42%),
+    repeating-linear-gradient(90deg, rgba(24, 23, 19, 0.035) 0 1px, transparent 1px 12px),
+    var(--paper);
+}
+
+button,
+textarea,
+input {
+  font: inherit;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.88fr) minmax(480px, 1.45fr);
+  gap: 24px;
+  min-height: 100vh;
+  padding: 28px;
+}
+
+.studio,
+.result-stage,
+.inventory-rail {
+  border: 1px solid var(--line);
+  background: rgba(245, 240, 231, 0.76);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+}
+
+.studio {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 24px;
+  border-radius: 8px;
+}
+
+.brandmark {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.monogram {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  color: var(--paper);
+  background: var(--ink);
+  border-radius: 50%;
+  font-family: Didot, "Bodoni 72", Georgia, serif;
+  font-size: 34px;
+}
+
+.brandmark p,
+.result-header p,
+.rail-heading p {
+  margin: 0;
+  color: var(--brass);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.brandmark strong {
+  display: block;
+  margin-top: 3px;
+  font-family: Didot, "Bodoni 72", Georgia, serif;
+  font-size: clamp(26px, 4vw, 42px);
+  font-weight: 500;
+  line-height: 0.95;
+}
+
+.prompt-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.prompt-panel label {
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+textarea {
+  min-height: 210px;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid rgba(24, 23, 19, 0.22);
+  border-radius: 8px;
+  padding: 18px;
+  color: var(--ink);
+  background: rgba(255, 252, 246, 0.86);
+  line-height: 1.55;
+  outline: none;
+}
+
+textarea:focus,
+input:focus {
+  border-color: var(--brass);
+  box-shadow: 0 0 0 3px rgba(163, 111, 53, 0.16);
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.price-field {
+  display: grid;
+  gap: 6px;
+}
+
+.price-field span {
+  color: rgba(24, 23, 19, 0.62);
+  font-size: 12px;
+}
+
+input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid rgba(24, 23, 19, 0.22);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: rgba(255, 252, 246, 0.86);
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+}
+
+.controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 18px;
+  color: #fffaf0;
+  background: var(--oxblood);
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+.controls svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.quick-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quick-prompts button {
+  min-height: 36px;
+  padding: 0 12px;
+  color: var(--marine);
+  background: rgba(25, 52, 77, 0.09);
+  border: 1px solid rgba(25, 52, 77, 0.18);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.status-strip {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: auto;
+}
+
+.status-strip div {
+  min-height: 76px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 252, 246, 0.48);
+}
+
+.status-strip span {
+  display: block;
+  font-family: Didot, "Bodoni 72", Georgia, serif;
+  font-size: 27px;
+}
+
+.status-strip small {
+  color: rgba(24, 23, 19, 0.62);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.result-stage {
+  display: grid;
+  grid-template-rows: auto minmax(320px, 1fr) auto auto;
+  gap: 18px;
+  padding: 24px;
+  border-radius: 8px;
+}
+
+.result-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.result-header h1 {
+  margin: 4px 0 0;
+  font-family: Didot, "Bodoni 72", Georgia, serif;
+  font-size: clamp(36px, 5vw, 68px);
+  font-weight: 500;
+  line-height: 0.92;
+}
+
+.result-header a {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+}
+
+.items {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  min-height: 320px;
+}
+
+.items.empty {
+  grid-template-columns: 1fr;
+}
+
+.empty-state {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  border: 1px dashed rgba(24, 23, 19, 0.28);
+  border-radius: 8px;
+}
+
+.empty-state span {
+  width: min(320px, 70%);
+  aspect-ratio: 4 / 5;
+  background:
+    linear-gradient(135deg, rgba(25, 52, 77, 0.86), rgba(101, 31, 42, 0.72)),
+    url("https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=900&q=70");
+  background-size: cover;
+  background-position: center;
+  border-radius: 8px;
+  box-shadow: 0 22px 70px rgba(25, 52, 77, 0.25);
+}
+
+.empty-state p {
+  max-width: 360px;
+  margin: 0;
+  color: rgba(24, 23, 19, 0.64);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.item {
+  position: relative;
+  overflow: hidden;
+  min-height: 380px;
+  border-radius: 8px;
+  background: #ddd0bf;
+}
+
+.item img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 380px;
+  padding: 18px 16px 148px;
+  object-fit: contain;
+  background: #d9cbb6;
+  transition: transform 420ms ease;
+}
+
+.item:hover img {
+  transform: scale(1.035);
+}
+
+.item-info {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  left: 10px;
+  padding: 12px;
+  color: #fffaf0;
+  background: rgba(24, 23, 19, 0.78);
+  border: 1px solid rgba(255, 250, 240, 0.22);
+  border-radius: 8px;
+}
+
+.item-info small {
+  color: rgba(255, 250, 240, 0.7);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.item-info h2 {
+  margin: 5px 0;
+  font-family: Didot, "Bodoni 72", Georgia, serif;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.item-info p {
+  margin: 0;
+  color: rgba(255, 250, 240, 0.78);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.note-band {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 18px;
+  align-items: center;
+  padding: 18px;
+  color: #fffaf0;
+  background: linear-gradient(135deg, var(--ink), var(--marine));
+  border-radius: 8px;
+}
+
+.note-band p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.note-band strong {
+  font-family: Didot, "Bodoni 72", Georgia, serif;
+  font-size: clamp(30px, 4vw, 52px);
+  font-weight: 500;
+}
+
+.trace-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 252, 246, 0.44);
+}
+
+.trace-panel summary {
+  cursor: pointer;
+  padding: 14px 16px;
+  font-weight: 800;
+}
+
+.trace-panel ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0 18px 16px 38px;
+  color: rgba(24, 23, 19, 0.72);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.inventory-rail {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 8px;
+}
+
+.rail-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.rail-heading span {
+  color: rgba(24, 23, 19, 0.58);
+  font-size: 13px;
+}
+
+.rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(120px, 1fr);
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.rail figure {
+  margin: 0;
+}
+
+.rail img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+
+.rail figcaption {
+  margin-top: 6px;
+  color: rgba(24, 23, 19, 0.7);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.loading {
+  opacity: 0.58;
+  pointer-events: none;
+}
+
+@media (max-width: 980px) {
+  .shell {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+
+  .items {
+    grid-template-columns: 1fr;
+  }
+
+  .item,
+  .item img {
+    min-height: 420px;
+  }
+}
+
+@media (max-width: 560px) {
+  .studio,
+  .result-stage,
+  .inventory-rail {
+    padding: 16px;
+  }
+
+  .controls,
+  .note-band,
+  .status-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .result-header {
+    flex-direction: column;
+  }
+}
