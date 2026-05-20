@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -47,6 +47,11 @@ async def console() -> FileResponse:
     return FileResponse("app/static/index.html")
 
 
+@app.head("/", include_in_schema=False)
+async def console_head() -> Response:
+    return Response(status_code=200)
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     return HealthResponse(
@@ -55,6 +60,11 @@ async def health() -> HealthResponse:
         vector_backend=container.vector_store.backend_name,
         llm_provider=settings.llm_provider,
     )
+
+
+@app.head("/health", include_in_schema=False)
+async def health_head() -> Response:
+    return Response(status_code=200)
 
 
 @app.post("/api/v1/style-me", response_model=StyleResponse)
