@@ -4,9 +4,19 @@ import hashlib
 import math
 import re
 from collections.abc import Iterable
+from typing import Protocol
 
 
 TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+class Embedder(Protocol):
+    dimensions: int
+    cache_key: str
+
+    def embed(self, text: str) -> list[float]: ...
+
+    def embed_many(self, texts: Iterable[str]) -> list[list[float]]: ...
 
 
 class HashingEmbedder:
@@ -19,6 +29,7 @@ class HashingEmbedder:
 
     def __init__(self, dimensions: int = 384) -> None:
         self.dimensions = dimensions
+        self.cache_key = f"hashing:{dimensions}"
 
     def embed(self, text: str) -> list[float]:
         vector = [0.0] * self.dimensions
@@ -46,6 +57,30 @@ class HashingEmbedder:
         if token in COLOR_TERMS:
             return 1.5
         return 1.0
+
+
+class FastEmbedder:
+    """Local neural embedding model backed by Qdrant FastEmbed.
+
+    The default BGE small model is light enough for a free Render service and
+    avoids paid embedding API calls while still giving the assignment a real
+    semantic embedding path.
+    """
+
+    def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5", dimensions: int = 384) -> None:
+        from fastembed import TextEmbedding
+
+        self.model_name = model_name
+        self.dimensions = dimensions
+        self.cache_key = f"fastembed:{model_name}:{dimensions}"
+        self._model = TextEmbedding(model_name=model_name)
+
+    def embed(self, text: str) -> list[float]:
+        return self.embed_many([text])[0]
+
+    def embed_many(self, texts: Iterable[str]) -> list[list[float]]:
+        vectors = self._model.embed(list(texts))
+        return [normalize(vector.tolist()) for vector in vectors]
 
 
 def cosine_similarity(left: list[float], right: list[float]) -> float:

@@ -16,8 +16,8 @@ An end-to-end Gen AI and data engineering assignment for a premium fashion conci
 
 - Scrapes public apparel catalogs from two Shopify-backed fashion brands.
 - Normalizes products into clean JSON: name, price, image URL, category, description, color, material, source.
-- Indexes 334 curated products into Qdrant locally through Docker Compose, or into a zero-service local vector fallback for free hosting.
-- Runs an agentic styling workflow with intent extraction, vector retrieval, reranking, semantic cache, rate limiting, and structured JSON output.
+- Indexes 410 curated products with FastEmbed/BGE vectors into Qdrant locally through Docker Compose, Qdrant Cloud, or a zero-service local vector fallback for free hosting.
+- Runs an agentic styling workflow with intent extraction, style-signal enriched vector retrieval, reranking, semantic cache, rate limiting, and structured JSON output.
 - Serves a luxury concierge UI at `/` with default Atelier mode, reviewer-facing Engineer mode, lazy-loaded inventory preview, and a custom SVG/PNG brand mark.
 
 ## Fast Start
@@ -95,7 +95,13 @@ It uses randomized user agents, polite jitter, normalized Shopify product feeds,
 
 ## Free Deployment Strategy
 
-Default deploy path uses one Render web service with the local JSON vector fallback. That keeps the app deployable without paying for a hosted database. For a stronger production-style demo, point the same app at a free Qdrant Cloud cluster:
+Default deploy path uses one Render web service with the local JSON vector fallback and local FastEmbed embeddings. That keeps the app deployable without paying for a hosted database or embedding API. For a stronger production-style demo, point the same app at a free Qdrant Cloud cluster:
+
+```env
+EMBEDDING_PROVIDER=fastembed
+EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+EMBEDDING_DIMENSIONS=384
+```
 
 ```env
 VECTOR_BACKEND=qdrant
@@ -127,13 +133,13 @@ app/
   cache.py          # semantic cache for repeated/similar prompts
   catalog.py        # catalog loading and category counts
   config.py         # environment settings
-  embeddings.py     # deterministic local embeddings
+  embeddings.py     # FastEmbed BGE embeddings plus hashing fallback
   main.py           # FastAPI app and routes
   models.py         # Pydantic request/response/catalog models
   vector_store.py   # Qdrant and local JSON vector implementations
   static/           # concierge UI, logo, favicons, vendored icons
 data/
-  catalog.seed.json # checked-in demo catalog, 334 tops/bottoms/shoes/accessories
+  catalog.seed.json # checked-in demo catalog, 410 tops/bottoms/shoes/accessories
   catalog.scraped.sample.json # scraper output sample from public apparel sites
 scripts/
   generate_seed_catalog.py

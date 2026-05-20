@@ -11,6 +11,7 @@ COPY app ./app
 COPY data ./data
 
 RUN pip install --upgrade pip && pip install .
+RUN python -c "from fastembed import TextEmbedding; list(TextEmbedding(model_name='BAAI/bge-small-en-v1.5').embed(['quickeee warmup']))"
 
 EXPOSE 8000
 

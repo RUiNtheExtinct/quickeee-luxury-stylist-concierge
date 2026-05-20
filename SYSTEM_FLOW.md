@@ -4,7 +4,7 @@
 flowchart TD
     A["Public apparel websites<br/>Everlane + Taylor Stitch"] --> B["Scraper<br/>Shopify feed + optional Playwright DOM fallback"]
     B --> C["Clean catalog JSON<br/>name, price, image, category, description, color, material"]
-    C --> D["Embedding pipeline<br/>deterministic local embeddings"]
+    C --> D["Embedding pipeline<br/>FastEmbed BGE-small neural vectors"]
     D --> E{"Vector backend"}
     E --> F["Qdrant<br/>Docker or Qdrant Cloud"]
     E --> G["Local JSON vector store<br/>free deploy fallback"]
@@ -13,11 +13,11 @@ flowchart TD
     U --> J["Semantic cache lookup"]
     J -->|hit| R["Structured JSON response"]
     J -->|miss| K["Intent extraction<br/>occasion, colors, budget, owned garments"]
-    K --> L["Category-aware vector retrieval"]
+    K --> L["Category-aware vector retrieval<br/>style-signal enriched queries"]
     F --> L
     G --> L
     L --> M["Fashion reranker<br/>palette, material, occasion rules"]
-    M --> N["Outfit selection"]
+    M --> N["Outfit selection<br/>top, bottom, shoe, accessory when useful"]
     N --> O{"LLM provider configured?"}
     O -->|yes| P["Compact LLM stylist note<br/>selected item facts only"]
     O -->|no| Q["Local deterministic stylist note"]

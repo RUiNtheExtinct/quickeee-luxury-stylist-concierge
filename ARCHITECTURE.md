@@ -29,7 +29,7 @@ The primary path reads Shopify product feeds because they expose clean product s
 - `material`
 - `tags`
 
-Scraper rate-limit handling is intentionally simple and frugal: randomized user agents, jittered delays, timeouts, and deduplication. `data/catalog.scraped.sample.json` stores a representative scraper run, and the checked-in 334-item seed catalog exists so the demo remains reliable even if a retailer blocks traffic during review.
+Scraper rate-limit handling is intentionally simple and frugal: randomized user agents, jittered delays, timeouts, and deduplication. `data/catalog.scraped.sample.json` stores a representative scraper run, and the checked-in 410-item seed catalog exists so the demo remains reliable even if a retailer blocks traffic during review.
 
 ### Vector Memory
 
@@ -44,16 +44,16 @@ Metadata is stored alongside every vector so retrieval can filter by:
 - `price`
 - `color`
 
-The embedding implementation uses deterministic local hashing embeddings. This is deliberate for the assignment: it removes paid embedding calls, avoids rate-limit failures during demos, and keeps deployment free. The interface can be swapped for hosted embeddings later without changing the API contract.
+The default embedding implementation uses FastEmbed with `BAAI/bge-small-en-v1.5`, a local 384-dimensional neural embedding model. This keeps retrieval model-backed without paid embedding API calls. A deterministic hashing embedder remains as an emergency fallback if a free host cannot initialize the model.
 
 ### Agent Workflow
 
 `app/agent.py` runs a compact agentic workflow:
 
 1. Check semantic cache before any retrieval.
-2. Extract intent from the prompt: colors, occasion, budget, owned garments, and required categories.
+2. Extract intent from the prompt: colors, occasion, budget, owned garments, style signals, and required categories.
 3. Query vector memory once per needed category.
-4. Rerank candidates with fashion-aware signals such as color harmony, summer fabrics, yacht/resort vocabulary, and material suitability.
+4. Rerank candidates with fashion-aware signals such as color harmony, summer fabrics, yacht/resort vocabulary, tech/pro/cool/nerdy vocabulary, and material suitability.
 5. Select a coherent outfit.
 6. Generate a stylist note.
 7. Return a structured JSON payload.
@@ -73,7 +73,7 @@ This prompt shape is frugal:
 
 ### Semantic Cache
 
-`app/cache.py` stores prompt embeddings and full responses. A similar prompt above the configured similarity threshold returns a cached response. This prevents repeated LLM calls and repeated retrieval work for common styling requests.
+`app/cache.py` stores prompt embeddings and full responses. Cache entries are namespaced by agent version and embedding model, so stale responses do not survive retrieval or prompt upgrades. A similar prompt above the configured similarity threshold returns a cached response, preventing repeated LLM calls and repeated retrieval work for common styling requests.
 
 ### API
 
@@ -130,6 +130,16 @@ For a more realistic hosted vector DB, use Qdrant Cloud free tier and set:
 VECTOR_BACKEND=qdrant
 QDRANT_URL=...
 QDRANT_API_KEY=...
+QDRANT_COLLECTION=quickeee_catalog
+```
+
+For hosted stylist notes, set:
+
+```env
+LLM_PROVIDER=groq
+LLM_API_KEY=...
+LLM_BASE_URL=https://api.groq.com/openai/v1
+LLM_MODEL=llama-3.3-70b-versatile
 ```
 
 ## State Management

@@ -11,11 +11,18 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     catalog_path: Path = Path("data/catalog.seed.json")
     cache_path: Path = Path("data/cache.json")
+    cache_namespace: str = "style-agent-v3"
+
+    embedding_provider: str = "fastembed"
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    embedding_dimensions: int = 384
+    allow_embedding_fallback: bool = True
 
     vector_backend: str = "local_json"
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: str = ""
     qdrant_collection: str = "quickeee_catalog"
+    qdrant_recreate_on_startup: bool = True
     allow_local_vector_fallback: bool = True
 
     llm_provider: str = "local"

@@ -10,6 +10,16 @@ services:
         value: production
       - key: CATALOG_PATH
         value: data/catalog.seed.json
+      - key: CACHE_NAMESPACE
+        value: style-agent-v3
+      - key: EMBEDDING_PROVIDER
+        value: fastembed
+      - key: EMBEDDING_MODEL
+        value: BAAI/bge-small-en-v1.5
+      - key: EMBEDDING_DIMENSIONS
+        value: 384
+      - key: ALLOW_EMBEDDING_FALLBACK
+        value: true
       - key: VECTOR_BACKEND
         value: local_json
       - key: ALLOW_LOCAL_VECTOR_FALLBACK

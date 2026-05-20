@@ -13,6 +13,14 @@ gh repo create quickeee-luxury-stylist --public --source=. --push
 
 Then connect the GitHub repo to Render. The included `render.yaml` configures the service.
 
+The default Render path still uses real local embeddings:
+
+```env
+EMBEDDING_PROVIDER=fastembed
+EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+EMBEDDING_DIMENSIONS=384
+```
+
 ## Production-Style Vector DB
 
 Use Qdrant Cloud free tier when you want a managed vector database:
@@ -34,6 +42,8 @@ LLM_API_KEY=your-key
 LLM_BASE_URL=https://api.groq.com/openai/v1
 LLM_MODEL=llama-3.3-70b-versatile
 ```
+
+Without `LLM_API_KEY`, the app falls back to its deterministic local stylist note so the demo still works.
 
 ## Accounts Needed
 

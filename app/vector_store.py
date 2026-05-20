@@ -8,7 +8,7 @@ from typing import Any, Protocol
 
 import httpx
 
-from app.embeddings import HashingEmbedder, cosine_similarity
+from app.embeddings import Embedder, cosine_similarity
 from app.models import CatalogItem, Category
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ class VectorStore(Protocol):
 class LocalJsonVectorStore:
     backend_name = "local_json"
 
-    def __init__(self, embedder: HashingEmbedder, path: Path = Path("data/vector_store.json")) -> None:
+    def __init__(self, embedder: Embedder, path: Path = Path("data/vector_store.json")) -> None:
         self.embedder = embedder
         self.path = path
         self._records: list[dict[str, Any]] = []
@@ -48,19 +48,32 @@ class LocalJsonVectorStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         current_ids = {record["item"]["id"] for record in self._records}
         item_ids = {item.id for item in items}
-        if self.path.exists() and current_ids != item_ids:
+        if self.path.exists() and (current_ids != item_ids or not self._records_match_embedder()):
             self._records = []
         if not self._records and self.path.exists():
             self._records = json.loads(self.path.read_text())
         current_ids = {record["item"]["id"] for record in self._records}
-        if current_ids == item_ids:
+        if current_ids == item_ids and self._records_match_embedder():
             return
         self._records = [
-            {"item": item.model_dump(mode="json"), "vector": self.embedder.embed(item.searchable_text)}
+            {
+                "embedding_model": self.embedder.cache_key,
+                "item": item.model_dump(mode="json"),
+                "vector": self.embedder.embed(item.searchable_text),
+            }
             for item in items
         ]
         self.path.write_text(json.dumps(self._records, indent=2))
         logger.info("Indexed %s catalog items into local JSON vector store", len(items))
+
+    def _records_match_embedder(self) -> bool:
+        if not self._records:
+            return False
+        for record in self._records[:3]:
+            vector = record.get("vector", [])
+            if record.get("embedding_model") != self.embedder.cache_key or len(vector) != self.embedder.dimensions:
+                return False
+        return True
 
     async def search(
         self,
@@ -91,16 +104,18 @@ class QdrantVectorStore:
 
     def __init__(
         self,
-        embedder: HashingEmbedder,
+        embedder: Embedder,
         *,
         url: str,
         api_key: str,
         collection: str,
+        recreate_on_startup: bool = True,
     ) -> None:
         self.embedder = embedder
         self.url = url.rstrip("/")
         self.api_key = api_key
         self.collection = collection
+        self.recreate_on_startup = recreate_on_startup
 
     @property
     def _headers(self) -> dict[str, str]:
@@ -114,24 +129,13 @@ class QdrantVectorStore:
             collection_url = f"{self.url}/collections/{self.collection}"
             response = await client.get(collection_url, headers=self._headers)
             if response.status_code == 404:
-                create_payload = {
-                    "vectors": {"size": self.embedder.dimensions, "distance": "Cosine"},
-                    "optimizers_config": {"default_segment_number": 2},
-                }
-                create_response = await client.put(collection_url, headers=self._headers, json=create_payload)
-                create_response.raise_for_status()
+                await self._create_collection(client, collection_url)
             elif response.status_code >= 400:
                 response.raise_for_status()
-
-            count_response = await client.post(
-                f"{collection_url}/points/count",
-                headers=self._headers,
-                json={"exact": True},
-            )
-            count_response.raise_for_status()
-            count = count_response.json().get("result", {}).get("count", 0)
-            if count >= len(items):
-                return
+            elif self.recreate_on_startup or not self._collection_matches_embedder(response.json()):
+                delete_response = await client.delete(collection_url, headers=self._headers)
+                delete_response.raise_for_status()
+                await self._create_collection(client, collection_url)
 
             points = []
             for idx, item in enumerate(items):
@@ -139,7 +143,10 @@ class QdrantVectorStore:
                     {
                         "id": idx + 1,
                         "vector": self.embedder.embed(item.searchable_text),
-                        "payload": item.model_dump(mode="json"),
+                        "payload": {
+                            **item.model_dump(mode="json"),
+                            "_embedding_model": self.embedder.cache_key,
+                        },
                     }
                 )
             upsert_response = await client.put(
@@ -149,6 +156,24 @@ class QdrantVectorStore:
             )
             upsert_response.raise_for_status()
             logger.info("Indexed %s catalog items into Qdrant collection %s", len(points), self.collection)
+
+    async def _create_collection(self, client: httpx.AsyncClient, collection_url: str) -> None:
+        create_payload = {
+            "vectors": {"size": self.embedder.dimensions, "distance": "Cosine"},
+            "optimizers_config": {"default_segment_number": 2},
+        }
+        create_response = await client.put(collection_url, headers=self._headers, json=create_payload)
+        create_response.raise_for_status()
+
+    def _collection_matches_embedder(self, collection_response: dict[str, Any]) -> bool:
+        vectors = collection_response.get("result", {}).get("config", {}).get("params", {}).get("vectors", {})
+        if isinstance(vectors, dict) and "size" in vectors:
+            return vectors.get("size") == self.embedder.dimensions
+        if isinstance(vectors, dict):
+            first_config = next(iter(vectors.values()), {})
+            if isinstance(first_config, dict):
+                return first_config.get("size") == self.embedder.dimensions
+        return False
 
     async def search(
         self,

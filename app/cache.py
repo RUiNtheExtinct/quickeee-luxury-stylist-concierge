@@ -4,15 +4,16 @@ import json
 import time
 from pathlib import Path
 
-from app.embeddings import HashingEmbedder, cosine_similarity
+from app.embeddings import Embedder, cosine_similarity
 from app.models import StyleResponse
 
 
 class SemanticCache:
-    def __init__(self, path: Path, embedder: HashingEmbedder, threshold: float = 0.94) -> None:
+    def __init__(self, path: Path, embedder: Embedder, threshold: float = 0.94, namespace: str = "style-agent-v3") -> None:
         self.path = path
         self.embedder = embedder
         self.threshold = threshold
+        self.namespace = namespace
         self._entries: list[dict] = []
         self._loaded = False
 
@@ -22,6 +23,8 @@ class SemanticCache:
         best = None
         best_score = -1.0
         for entry in self._entries:
+            if entry.get("namespace") != self.namespace or entry.get("embedding_model") != self.embedder.cache_key:
+                continue
             score = cosine_similarity(vector, entry["vector"])
             if score > best_score:
                 best = entry
@@ -36,6 +39,8 @@ class SemanticCache:
         response_for_cache = response.model_copy(update={"cache_hit": False})
         self._entries.append(
             {
+                "namespace": self.namespace,
+                "embedding_model": self.embedder.cache_key,
                 "prompt": prompt,
                 "vector": self.embedder.embed(prompt),
                 "created_at": int(time.time()),

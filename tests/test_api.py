@@ -40,3 +40,25 @@ def test_catalog_has_assignment_minimums():
     assert len(first_page.json()) == 4
     assert len(second_page.json()) == 4
     assert {item["id"] for item in first_page.json()}.isdisjoint({item["id"] for item in second_page.json()})
+
+
+def test_tech_nerdy_party_prompt_drives_style_signals_and_accessory():
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/style-me",
+            json={
+                "prompt": "I want to go to a suave tech bro party and want to look cool and nerdy.",
+                "include_trace": True,
+            },
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    intent_detail = next(step["detail"] for step in data["trace"] if step["step"] == "intent")
+    assert "tech bro" in intent_detail
+    assert "suave" in intent_detail
+    assert "cool" in intent_detail
+    assert "nerdy" in intent_detail
+    assert "accessory" in intent_detail
+    assert any(item["category"] == "accessory" for item in data["recommended_items"])
+    assert any(term in data["stylist_note"].lower() for term in ["tech", "nerdy", "suave"])

@@ -92,4 +92,6 @@ class HealthResponse(BaseModel):
     status: str
     catalog_items: int
     vector_backend: str
+    embedding_provider: str
+    embedding_model: str
     llm_provider: str

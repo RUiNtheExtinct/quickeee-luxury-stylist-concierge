@@ -6,7 +6,7 @@ from app.agent import StylistAgent
 from app.cache import SemanticCache
 from app.catalog import CatalogRepository
 from app.config import Settings, get_settings
-from app.embeddings import HashingEmbedder
+from app.embeddings import Embedder, FastEmbedder, HashingEmbedder
 from app.vector_store import LocalJsonVectorStore, QdrantVectorStore, VectorStore
 
 logger = logging.getLogger(__name__)
@@ -16,9 +16,9 @@ class AppContainer:
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
         self.catalog = CatalogRepository(settings.catalog_path)
-        self.embedder = HashingEmbedder()
+        self.embedder = self._build_embedder(settings)
         self.vector_store: VectorStore = self._build_vector_store(settings)
-        self.cache = SemanticCache(settings.cache_path, self.embedder)
+        self.cache = SemanticCache(settings.cache_path, self.embedder, namespace=settings.cache_namespace)
         self.agent = StylistAgent(
             vector_store=self.vector_store,
             cache=self.cache,
@@ -26,7 +26,21 @@ class AppContainer:
             llm_api_key=settings.llm_api_key,
             llm_base_url=settings.llm_base_url,
             llm_model=settings.llm_model,
+            embedding_label=self.embedder.cache_key,
         )
+
+    def _build_embedder(self, settings: Settings) -> Embedder:
+        if settings.embedding_provider == "fastembed":
+            try:
+                return FastEmbedder(
+                    model_name=settings.embedding_model,
+                    dimensions=settings.embedding_dimensions,
+                )
+            except Exception as exc:
+                if not settings.allow_embedding_fallback:
+                    raise
+                logger.warning("Embedding provider fastembed unavailable, falling back to hashing: %s", exc)
+        return HashingEmbedder(dimensions=settings.embedding_dimensions)
 
     def _build_vector_store(self, settings: Settings) -> VectorStore:
         if settings.vector_backend == "qdrant":
@@ -35,6 +49,7 @@ class AppContainer:
                 url=settings.qdrant_url,
                 api_key=settings.qdrant_api_key,
                 collection=settings.qdrant_collection,
+                recreate_on_startup=settings.qdrant_recreate_on_startup,
             )
         return LocalJsonVectorStore(self.embedder)
 

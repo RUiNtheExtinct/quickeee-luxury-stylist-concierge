@@ -87,7 +87,6 @@ ACCESSORY_KEYWORDS = {
     "beanie",
     "cap",
     "charm",
-    "cuff",
     "hat",
     "scarf",
     "sock",
@@ -158,6 +157,8 @@ def normalize_product(brand: dict[str, str], product: dict[str, Any]) -> Catalog
         return None
 
     image_url = choose_image_url(product)
+    if not image_url:
+        return None
 
     description = html_to_text(product.get("body_html", ""))
     handle = product.get("handle", "")
@@ -171,7 +172,7 @@ def normalize_product(brand: dict[str, str], product: dict[str, Any]) -> Catalog
         name=title,
         price=price,
         currency="USD",
-        image_url=image_url or "https://placehold.co/800x1000?text=Quickeee",
+        image_url=image_url,
         product_url=product_url,
         category=category,
         description=description or f"{title} from {brand['brand']}.",
@@ -215,15 +216,19 @@ async def scrape_with_playwright(collection_urls: list[str]) -> list[dict[str, s
 
 
 def classify(text: str) -> Category | None:
-    if any(keyword in text for keyword in TOP_KEYWORDS):
-        return Category.top
-    if any(keyword in text for keyword in BOTTOM_KEYWORDS):
-        return Category.bottom
-    if any(keyword in text for keyword in SHOE_KEYWORDS):
+    if has_keyword(text, SHOE_KEYWORDS):
         return Category.shoe
-    if any(keyword in text for keyword in ACCESSORY_KEYWORDS):
+    if has_keyword(text, ACCESSORY_KEYWORDS):
         return Category.accessory
+    if has_keyword(text, TOP_KEYWORDS):
+        return Category.top
+    if has_keyword(text, BOTTOM_KEYWORDS):
+        return Category.bottom
     return None
+
+
+def has_keyword(text: str, keywords: set[str]) -> bool:
+    return any(re.search(rf"\b{re.escape(keyword)}\b", text) for keyword in keywords)
 
 
 def choose_image_url(product: dict[str, Any]) -> str:

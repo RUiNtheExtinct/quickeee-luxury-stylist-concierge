@@ -16,6 +16,8 @@ const helpButton = document.querySelector("#help-button");
 const helpClose = document.querySelector("#help-close");
 const debugBackend = document.querySelector("#debug-backend");
 const debugCache = document.querySelector("#debug-cache");
+const debugEmbedding = document.querySelector("#debug-embedding");
+const debugLlm = document.querySelector("#debug-llm");
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 const catalogPageSize = 100;
@@ -37,6 +39,8 @@ async function loadHealth() {
   document.querySelector("#catalog-count").textContent = data.catalog_items;
   document.querySelector("#vector-backend").textContent = data.vector_backend;
   debugBackend.textContent = data.vector_backend;
+  debugEmbedding.textContent = data.embedding_model || data.embedding_provider || "local";
+  debugLlm.textContent = data.llm_provider || "local";
   updateRailCount();
 }
 

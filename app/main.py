@@ -62,6 +62,8 @@ async def health() -> HealthResponse:
         status="ok",
         catalog_items=len(container.catalog.load()),
         vector_backend=container.vector_store.backend_name,
+        embedding_provider=settings.embedding_provider,
+        embedding_model=settings.embedding_model,
         llm_provider=settings.llm_provider,
     )
 

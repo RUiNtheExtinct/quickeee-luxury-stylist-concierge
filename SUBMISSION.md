@@ -21,11 +21,12 @@ curl -X POST https://quickeee-luxury-stylist.onrender.com/api/v1/style-me \
 ## Notes For Reviewers
 
 - The public Render deployment uses the frugal `local_json` vector backend so it can stay on a free web service without a paid vector database.
+- Retrieval uses FastEmbed with `BAAI/bge-small-en-v1.5` locally, so embeddings are model-backed without an embedding API bill.
 - The same code supports Qdrant via Docker Compose or Qdrant Cloud by changing environment variables.
 - The app intentionally works without an LLM key. If a Groq/OpenAI-compatible key is configured, only compact selected item facts are sent to the LLM after retrieval.
 - `data/catalog.scraped.sample.json` is a representative live scraper output from public apparel sources.
-- `data/catalog.seed.json` is the stable 334-item deploy/demo catalog used by the hosted service.
-- The UI has a default Atelier mode for normal reviewers and an Engineer mode for agent trace, cache state, vector backend, and raw response JSON.
+- `data/catalog.seed.json` is the stable 410-item deploy/demo catalog used by the hosted service.
+- The UI has a default Atelier mode for normal reviewers and an Engineer mode for agent trace, cache state, vector backend, embedding model, LLM provider, and raw response JSON.
 - The inventory preview is lazy-loaded in 100-item chunks, and cards use fixed image/info regions for consistent sizing across breakpoints.
 - The website includes a custom SVG logo, PNG favicons, and a web manifest.
 - `POST /api/v1/style-me` includes a lightweight free-tier rate limit of `30` requests per minute per IP by default.
