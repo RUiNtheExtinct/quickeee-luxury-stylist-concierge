@@ -6,6 +6,10 @@ An end-to-end Gen AI and data engineering assignment for a premium fashion conci
 
 ![Quickeee concierge UI](docs/demo-screenshot.png)
 
+- Live demo: `https://quickeee-luxury-stylist.onrender.com`
+- Swagger/API docs: `https://quickeee-luxury-stylist.onrender.com/docs`
+- Public repository: `https://github.com/RUiNtheExtinct/quickeee-luxury-stylist-concierge`
+
 - Scrapes public apparel catalogs from two Shopify-backed fashion brands.
 - Normalizes products into clean JSON: name, price, image URL, category, description, color, material, source.
 - Indexes products into Qdrant locally through Docker Compose, or into a zero-service local vector fallback for free hosting.
@@ -45,6 +49,17 @@ This runs:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/style-me \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "I have dark navy chinos, what t-shirt and shoes should I wear for a summer yacht party?",
+    "include_trace": true
+  }'
+```
+
+Hosted API demo:
+
+```bash
+curl -X POST https://quickeee-luxury-stylist.onrender.com/api/v1/style-me \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "I have dark navy chinos, what t-shirt and shoes should I wear for a summer yacht party?",
