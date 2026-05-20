@@ -44,4 +44,4 @@ To provision the hosted services, use:
 - Qdrant Cloud: optional free vector cluster
 - Groq or OpenAI-compatible provider: optional hosted stylist note
 
-No paid database is required.
+No paid database is required. The hosted demo also keeps `RATE_LIMIT_PER_MINUTE=30` by default so the free service is harder to exhaust during review.

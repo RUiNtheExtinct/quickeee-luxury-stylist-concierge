@@ -9,7 +9,8 @@ flowchart TD
     E --> F["Qdrant<br/>Docker or Qdrant Cloud"]
     E --> G["Local JSON vector store<br/>free deploy fallback"]
     H["User prompt"] --> I["POST /api/v1/style-me"]
-    I --> J["Semantic cache lookup"]
+    I --> U["Free-tier rate limit<br/>30 requests/min/IP by default"]
+    U --> J["Semantic cache lookup"]
     J -->|hit| R["Structured JSON response"]
     J -->|miss| K["Intent extraction<br/>occasion, colors, budget, owned garments"]
     K --> L["Category-aware vector retrieval"]
@@ -22,7 +23,8 @@ flowchart TD
     O -->|no| Q["Local deterministic stylist note"]
     P --> R
     Q --> R
-    R --> S["Concierge UI + Swagger demo"]
+    R --> S["Concierge UI<br/>Atelier + Engineer modes"]
+    R --> V["Swagger API demo"]
     R --> T["Cache write for similar future prompts"]
 ```
 

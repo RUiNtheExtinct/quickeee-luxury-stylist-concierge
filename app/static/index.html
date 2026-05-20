@@ -5,20 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Quickeee Luxury Stylist Concierge</title>
     <link rel="stylesheet" href="/static/styles.css" />
+    <script defer src="/static/vendor/lucide.js"></script>
   </head>
-  <body>
+  <body class="atelier-mode">
     <main class="shell">
       <section class="studio" aria-label="Stylist console">
-        <div class="brandmark">
-          <span class="monogram">Q</span>
-          <div>
-            <p>Quickeee</p>
-            <strong>Luxury Stylist Concierge</strong>
+        <div class="topbar">
+          <div class="brandmark">
+            <span class="monogram">Q</span>
+            <div>
+              <p>Quickeee</p>
+              <strong>Luxury Stylist Concierge</strong>
+            </div>
           </div>
+          <button id="help-button" class="icon-button" type="button" aria-label="Open concierge guide">
+            <i data-lucide="circle-help"></i>
+          </button>
+        </div>
+
+        <div class="mode-switch" role="group" aria-label="Experience mode">
+          <button class="active" type="button" data-mode="atelier">
+            <i data-lucide="sparkles"></i>
+            <span>Atelier</span>
+          </button>
+          <button type="button" data-mode="engineer">
+            <i data-lucide="terminal-square"></i>
+            <span>Engineer</span>
+          </button>
         </div>
 
         <form id="stylist-form" class="prompt-panel">
-          <label for="prompt">Client brief</label>
+          <div class="field-head">
+            <label for="prompt">Client brief</label>
+            <small>Occasion, owned pieces, weather, budget, and vibe all help.</small>
+          </div>
           <textarea id="prompt" name="prompt" rows="7">I have dark navy chinos, what t-shirt and shoes should I wear for a summer yacht party?</textarea>
           <div class="controls">
             <label class="price-field">
@@ -26,17 +46,30 @@
               <input id="max-price" type="number" min="1" placeholder="No cap" />
             </label>
             <button type="submit">
+              <i data-lucide="wand-sparkles"></i>
               <span>Style me</span>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
             </button>
           </div>
         </form>
 
-        <div class="quick-prompts" aria-label="Prompt examples">
-          <button data-prompt="Build a polished outfit for an outdoor founder dinner in warm weather under $450.">Founder dinner</button>
-          <button data-prompt="I own black jeans. Give me a sharp top and shoes for a gallery opening.">Gallery opening</button>
-          <button data-prompt="Style a relaxed resort look for a beach club lunch with linen pieces.">Resort lunch</button>
-        </div>
+        <section class="template-panel" aria-label="Prompt templates">
+          <div class="rail-heading compact">
+            <p>Brief templates</p>
+            <span>Tap one, then tune it</span>
+          </div>
+          <div class="quick-prompts">
+            <button data-prompt="Build a polished outfit for an outdoor founder dinner in warm weather under $450.">Founder dinner</button>
+            <button data-prompt="I own black jeans. Give me a sharp top and shoes for a gallery opening.">Gallery opening</button>
+            <button data-prompt="Style a relaxed resort look for a beach club lunch with linen pieces.">Resort lunch</button>
+            <button data-prompt="I have olive trousers. Style a quiet luxury airport look for a long-haul flight.">Airport lounge</button>
+            <button data-prompt="Create a refined date-night outfit for a rooftop cocktail bar with navy and cream tones.">Rooftop date</button>
+            <button data-prompt="I need a breathable smart-casual look for a humid client lunch under $500.">Client lunch</button>
+            <button data-prompt="Style a minimal weekend look around white sneakers and light chinos.">Weekend edit</button>
+            <button data-prompt="Build a polished beach wedding guest outfit with no black pieces.">Beach wedding</button>
+            <button data-prompt="I own tan chinos. Recommend a top and shoes for a private members club dinner.">Club dinner</button>
+            <button data-prompt="Create a gallery-to-dinner outfit that feels creative but still expensive.">Creative evening</button>
+          </div>
+        </section>
 
         <div class="status-strip">
           <div><span id="catalog-count">...</span><small>catalog items</small></div>
@@ -49,15 +82,47 @@
         <div class="result-header">
           <div>
             <p>Atelier selection</p>
-            <h1 id="result-title">Awaiting brief</h1>
+            <h1 id="result-title">Compose the brief</h1>
           </div>
-          <a href="/docs" target="_blank" rel="noreferrer">Swagger</a>
+          <div class="result-actions">
+            <a href="/docs" target="_blank" rel="noreferrer">
+              <i data-lucide="braces"></i>
+              Swagger
+            </a>
+          </div>
         </div>
 
         <div id="items" class="items empty">
           <div class="empty-state">
-            <span></span>
-            <p>Send a brief to compose a live RAG-backed outfit.</p>
+            <div class="empty-copy">
+              <span class="eyebrow">Before the first look</span>
+              <h2>Tell the concierge what the room should feel like.</h2>
+              <p>
+                Mention the pieces already in your wardrobe, the occasion, climate, and budget. The agent will retrieve only available inventory, rank it, and return a styled JSON payload.
+              </p>
+              <div class="empty-steps" aria-label="Workflow preview">
+                <span><i data-lucide="scan-search"></i> Retrieve</span>
+                <span><i data-lucide="sliders-horizontal"></i> Rerank</span>
+                <span><i data-lucide="badge-check"></i> Style</span>
+              </div>
+            </div>
+            <div class="look-preview" aria-hidden="true">
+              <div class="swatch navy"></div>
+              <div class="swatch ivory"></div>
+              <div class="swatch tan"></div>
+              <div class="preview-card main">
+                <span>Summer yacht party</span>
+                <strong>Navy chino base</strong>
+              </div>
+              <div class="preview-card accent">
+                <i data-lucide="shirt"></i>
+                <span>White tee</span>
+              </div>
+              <div class="preview-card shoe">
+                <i data-lucide="footprints"></i>
+                <span>Nubuck loafer</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -66,20 +131,82 @@
           <strong id="total-price">$0</strong>
         </div>
 
+        <section class="debug-grid" aria-label="Engineer telemetry">
+          <div class="debug-card">
+            <i data-lucide="database-zap"></i>
+            <div>
+              <strong id="debug-backend">local_json</strong>
+              <span>Vector backend</span>
+            </div>
+          </div>
+          <div class="debug-card">
+            <i data-lucide="wallet-cards"></i>
+            <div>
+              <strong id="debug-cache">cold</strong>
+              <span>Semantic cache</span>
+            </div>
+          </div>
+          <div class="debug-card">
+            <i data-lucide="shield-check"></i>
+            <div>
+              <strong>30/min</strong>
+              <span>Demo rate limit</span>
+            </div>
+          </div>
+        </section>
+
         <details class="trace-panel" open>
-          <summary>Agent trace</summary>
+          <summary><i data-lucide="route"></i> Agent trace</summary>
           <ol id="trace"></ol>
+        </details>
+
+        <details class="debug-json">
+          <summary><i data-lucide="file-json"></i> Response JSON</summary>
+          <pre id="response-json">{}</pre>
         </details>
       </section>
 
       <section class="inventory-rail" aria-label="Catalog preview">
         <div class="rail-heading">
           <p>Indexed inventory</p>
-          <span>Live-ready seed catalog</span>
+          <span>Expanded live-ready seed catalog</span>
         </div>
         <div id="rail" class="rail"></div>
       </section>
     </main>
+
+    <div id="help-modal" class="modal-backdrop" hidden>
+      <section class="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <button id="help-close" class="icon-button close" type="button" aria-label="Close concierge guide">
+          <i data-lucide="x"></i>
+        </button>
+        <p class="eyebrow">Concierge guide</p>
+        <h2 id="help-title">How to get the best recommendation</h2>
+        <div class="help-grid">
+          <article>
+            <i data-lucide="shirt"></i>
+            <h3>Name owned pieces</h3>
+            <p>“I have dark navy chinos” tells the agent to skip bottoms and complete the outfit.</p>
+          </article>
+          <article>
+            <i data-lucide="calendar-heart"></i>
+            <h3>Set the room</h3>
+            <p>Occasion, weather, dress code, and mood sharpen retrieval and reranking.</p>
+          </article>
+          <article>
+            <i data-lucide="receipt-text"></i>
+            <h3>Add constraints</h3>
+            <p>Budget, colors, and “no black” type rules are handled before the final recommendation.</p>
+          </article>
+          <article>
+            <i data-lucide="terminal-square"></i>
+            <h3>Use Engineer mode</h3>
+            <p>Reveal trace, cache state, vector backend, and response JSON for the assignment review.</p>
+          </article>
+        </div>
+      </section>
+    </div>
+
     <script src="/static/app.js"></script>
   </body>
 </html>

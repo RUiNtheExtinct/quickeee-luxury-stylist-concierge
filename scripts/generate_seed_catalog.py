@@ -51,6 +51,17 @@ SHOES = [
     ("Driving Moccasin", "navy", "suede", 175, "soft driving shoe that pairs naturally with chinos"),
 ]
 
+ACCESSORIES = [
+    ("Silk Pocket Square", "ivory", "silk", 48, "hand rolled pocket square for soft contrast against tailoring"),
+    ("Braided Leather Belt", "brown", "leather", 78, "supple braided belt that relaxes a tailored trouser"),
+    ("Linen Bandana", "navy", "linen", 34, "lightweight bandana for coastal styling"),
+    ("Woven Panama Hat", "sand", "straw", 120, "structured summer hat for resort and beach club dressing"),
+    ("Suede Weekender Bag", "tan", "suede", 310, "compact weekender that completes a travel uniform"),
+    ("Brushed Silver Cuff", "silver", "metal", 96, "minimal cuff with a quiet jewelry finish"),
+    ("Cashmere Travel Scarf", "grey", "cashmere", 155, "soft travel scarf for cool evenings after warm days"),
+    ("Canvas Tote", "olive", "canvas", 88, "structured tote with a utilitarian luxury attitude"),
+]
+
 
 def stable_id(value: str) -> str:
     return hashlib.sha1(value.encode("utf-8")).hexdigest()[:16]
@@ -83,7 +94,12 @@ def image_url(category: str, color: str, idx: int) -> str:
 def build_items() -> list[dict]:
     items: list[dict] = []
     brand_cycle = cycle(BRANDS)
-    for category, base_items, target in [("top", TOPS, 55), ("bottom", BOTTOMS, 55), ("shoe", SHOES, 18)]:
+    for category, base_items, target in [
+        ("top", TOPS, 160),
+        ("bottom", BOTTOMS, 120),
+        ("shoe", SHOES, 45),
+        ("accessory", ACCESSORIES, 40),
+    ]:
         for idx in range(target):
             name, color, material, price, description = base_items[idx % len(base_items)]
             brand = next(brand_cycle)
@@ -124,21 +140,23 @@ def build_from_live_scrape() -> list[dict] | None:
         return None
     live_items = json.loads(live_path.read_text())
     live_items = [item for item in live_items if "placehold.co" not in item.get("image_url", "")]
-    tops = select_balanced(live_items, "top", 55, ["tee", "shirt", "polo", "henley", "popover"])
-    bottoms = select_balanced(live_items, "bottom", 55, ["pant", "trouser", "chino", "jean", "short"])
-    if len(tops) < 50 or len(bottoms) < 50:
+    tops = select_balanced(live_items, "top", 160, ["tee", "shirt", "polo", "henley", "popover", "sweater"])
+    bottoms = select_balanced(live_items, "bottom", 120, ["pant", "trouser", "chino", "jean", "short"])
+    if len(tops) < 100 or len(bottoms) < 80:
         return None
-    shoes = select_balanced(live_items, "shoe", 18, ["sneaker", "loafer", "sandal", "moc", "shoe", "boot"])
-    if len(shoes) < 12:
-        shoes = [item for item in build_items() if item["category"] == "shoe"]
-    return tops + bottoms + shoes
+    shoes = select_balanced(live_items, "shoe", 45, ["sneaker", "loafer", "sandal", "moc", "shoe", "boot"])
+    generated = build_items()
+    if len(shoes) < 28:
+        shoes = [item for item in generated if item["category"] == "shoe"]
+    accessories = [item for item in generated if item["category"] == "accessory"]
+    return interleave_collections([tops, bottoms, shoes, accessories])
 
 
 def select_balanced(items: list[dict], category: str, target: int, preferred_terms: list[str]) -> list[dict]:
     brands = sorted({item["brand"] for item in items})
     picked: list[dict] = []
     seen: set[str] = set()
-    excluded_terms = {"dress", "skirt", "bodysuit", "legging"}
+    excluded_terms = {"dress", "skirt", "bodysuit", "legging", "care bundle", "cleaner", "insole", "laces", "sock"}
     per_brand = max(1, target // max(1, len(brands)))
     for brand in brands:
         candidates = [
@@ -163,6 +181,16 @@ def select_balanced(items: list[dict], category: str, target: int, preferred_ter
             picked.append(item)
             seen.add(item["id"])
     return picked[:target]
+
+
+def interleave_collections(collections: list[list[dict]]) -> list[dict]:
+    interleaved: list[dict] = []
+    max_length = max(len(collection) for collection in collections)
+    for index in range(max_length):
+        for collection in collections:
+            if index < len(collection):
+                interleaved.append(collection[index])
+    return interleaved
 
 
 def main() -> None:

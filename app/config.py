@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     scraper_delay_max_seconds: float = 2.2
     scraper_timeout_seconds: float = 30.0
 
+    rate_limit_per_minute: int = 30
+
 
 @lru_cache
 def get_settings() -> Settings:

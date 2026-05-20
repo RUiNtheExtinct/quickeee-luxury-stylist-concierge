@@ -29,7 +29,7 @@ The primary path reads Shopify product feeds because they expose clean product s
 - `material`
 - `tags`
 
-Rate-limit handling is intentionally simple and frugal: randomized user agents, jittered delays, timeouts, and deduplication. `data/catalog.scraped.sample.json` stores a representative scraper run, and the checked-in seed catalog exists so the demo remains reliable even if a retailer blocks traffic during review.
+Scraper rate-limit handling is intentionally simple and frugal: randomized user agents, jittered delays, timeouts, and deduplication. `data/catalog.scraped.sample.json` stores a representative scraper run, and the checked-in 362-item seed catalog exists so the demo remains reliable even if a retailer blocks traffic during review.
 
 ### Vector Memory
 
@@ -141,3 +141,7 @@ The service keeps state in three places:
 - Semantic cache: derived response cache for frugal repeated use.
 
 All three are rebuildable. The source of truth remains the catalog.
+
+## Free-Tier Protection
+
+`POST /api/v1/style-me` has a lightweight in-memory per-IP rate limit, configured by `RATE_LIMIT_PER_MINUTE`. The default is `30` requests per minute, which is enough for review demos while preventing accidental hammering on the free Render service. A production version would move this to Redis or an edge gateway, but adding that dependency would work against the assignment's frugal deployment goal.

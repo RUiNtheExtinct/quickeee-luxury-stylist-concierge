@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import logging
+import time
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
+from typing import Deque
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -15,6 +18,7 @@ from app.models import CatalogItem, HealthResponse, StyleRequest, StyleResponse
 settings = get_settings()
 logging.basicConfig(level=settings.log_level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger(__name__)
+rate_limit_window: dict[str, Deque[float]] = defaultdict(deque)
 
 
 @asynccontextmanager
@@ -68,10 +72,31 @@ async def health_head() -> Response:
 
 
 @app.post("/api/v1/style-me", response_model=StyleResponse)
-async def style_me(request: StyleRequest) -> StyleResponse:
+async def style_me(request: StyleRequest, http_request: Request) -> StyleResponse:
+    enforce_rate_limit(http_request)
     return await container.agent.recommend(request)
 
 
 @app.get("/api/v1/catalog", response_model=list[CatalogItem])
 async def catalog(limit: int = 24) -> list[CatalogItem]:
     return container.catalog.load()[: max(1, min(limit, 100))]
+
+
+def enforce_rate_limit(request: Request) -> None:
+    if settings.rate_limit_per_minute <= 0:
+        return
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    client_ip = forwarded_for.split(",")[0].strip() if forwarded_for else ""
+    if not client_ip and request.client:
+        client_ip = request.client.host
+    key = client_ip or "anonymous"
+    now = time.time()
+    hits = rate_limit_window[key]
+    while hits and now - hits[0] > 60:
+        hits.popleft()
+    if len(hits) >= settings.rate_limit_per_minute:
+        raise HTTPException(
+            status_code=429,
+            detail="Stylist is pacing requests to protect the free demo. Please try again in a minute.",
+        )
+    hits.append(now)
