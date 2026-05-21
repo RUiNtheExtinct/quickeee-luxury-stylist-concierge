@@ -60,7 +60,7 @@ function wireSegment(group, key, storageKey) {
     });
   });
 }
-const catalogPageSize = 100;
+const catalogPageSize = 24;
 let catalogTotal = 0;
 let catalogOffset = 0;
 let catalogLoading = false;
@@ -98,6 +98,9 @@ async function loadRail() {
     railCountEl.textContent = "Inventory unavailable";
     return;
   }
+  // Eager-load the first page so the visible rows always paint (lazy-loading a
+  // big batch at once left some tiles blank until a hover/scroll repaint).
+  const eager = catalogOffset === 0;
   railEl.insertAdjacentHTML(
     "beforeend",
     data
@@ -105,7 +108,7 @@ async function loadRail() {
         (item) => `
           <figure class="rail-card">
             <div class="rail-image">
-              <img src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.name)}" loading="lazy" decoding="async">
+              <img src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.name)}" loading="${eager ? "eager" : "lazy"}" decoding="async">
             </div>
             <figcaption>
               <strong>${escapeHtml(item.brand)}</strong>

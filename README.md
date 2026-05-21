@@ -149,5 +149,5 @@ tests/
 - Public GitHub repository
 - `ARCHITECTURE.md`
 - `SYSTEM_FLOW.md`
-- Demo recording showing UI or Swagger, JSON response, and terminal logs
+- Demo walkthrough: [`docs/demo/quickeee-walkthrough.webm`](docs/demo/quickeee-walkthrough.webm) — complex prompt → composed look → Engineer-mode agent trace + JSON
 - API endpoint demo: `POST /api/v1/style-me`

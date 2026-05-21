@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: str = ""
     qdrant_collection: str = "quickeee_catalog"
-    qdrant_recreate_on_startup: bool = True
+    qdrant_recreate_on_startup: bool = False
     allow_local_vector_fallback: bool = True
 
     llm_provider: str = "local"

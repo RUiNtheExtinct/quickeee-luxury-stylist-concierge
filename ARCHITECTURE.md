@@ -38,7 +38,11 @@ The primary path reads Shopify product feeds because they expose clean product s
 - **Material** prefers tagged values (`Primary Material: Organic Cotton`).
 - **Gender** is derived from `product_type` ("Men's Leather Slip On"), `handle` (`womens-...`), and tags (`MENS`, `women's`) — never the display name. This is what stops a women's sandal from appearing in a men's brief.
 
-Scraper rate-limit handling is intentionally simple and frugal: randomized user agents, jittered delays, timeouts, and deduplication. `data/catalog.scraped.sample.json` stores a representative scraper run, and the checked-in 420-item seed catalog (balanced 160 tops / 120 bottoms / 60 shoes / 80 accessories, with gender and clean colors) exists so the demo remains reliable even if a retailer blocks traffic during review.
+**Rate-limit handling and resilience.** The Shopify fetch (`fetch_brand_products`) uses randomized user agents, jittered delays, and **exponential backoff that honors `Retry-After` on 429/503** — a brand that throttles or returns a transient error is retried rather than crashing the run, and a brand that fails outright is skipped with a warning instead of aborting the whole scrape.
+
+**Complex DOM fallback (real, not vestigial).** When a brand blocks its JSON feed or renders inventory behind client-side state, `scripts/scrape_catalog.py --use-playwright` drives a headless Chromium that scrolls, waits, and reads product-card text/images, then funnels those records through the same `classify`/`extract_color`/`detect_gender` helpers into `CatalogItem`s. The JSON feed is the preferred path (richer, cleaner) but the DOM path is wired in and reachable, satisfying the "handle complex DOM structures gracefully" requirement.
+
+`data/catalog.scraped.sample.json` stores a representative scraper run, and the checked-in 420-item seed catalog (balanced 160 tops / 120 bottoms / 60 shoes / 80 accessories, with gender and clean colors) exists so the demo remains reliable even if a retailer blocks traffic during review.
 
 ### Vector Memory
 
@@ -58,6 +62,28 @@ Gender filtering always includes `unisex` pieces alongside the requested gender,
 
 The default embedding implementation uses FastEmbed with `BAAI/bge-small-en-v1.5`, a local 384-dimensional neural embedding model. This keeps retrieval model-backed without paid embedding API calls. A deterministic hashing embedder remains as an emergency fallback if a free host cannot initialize the model.
 
+### Database Schema
+
+Each catalog item is one Qdrant point: a 384-dim cosine vector (the embedded `searchable_text`) plus a JSON payload. The payload doubles as both the returned product record and the filter surface.
+
+| Field | Type | Indexed | Notes |
+|---|---|---|---|
+| `id` | string | (point id) | stable SHA1-derived id |
+| `brand` | string | no | e.g. "Everlane" |
+| `source` | string | no | retailer base URL |
+| `name` | string | no | product title |
+| `price` | float | **yes** (range) | filterable: `price <= max` |
+| `currency` | string | no | default `USD` |
+| `image_url` | string | no | product image |
+| `product_url` | string | no | link back to retailer |
+| `category` | keyword | **yes** (match) | `top` \| `bottom` \| `shoe` \| `accessory` |
+| `gender` | keyword | **yes** (match) | `men` \| `women` \| `unisex` |
+| `color` | keyword | **yes** (match) | canonicalized palette |
+| `material` | string | no | e.g. `linen`, `leather` |
+| `tags` | string[] | no | normalized lowercase tags |
+
+Vector params: `size=384`, `distance=Cosine`. Payload indexes on `price` (float/range), `category`/`gender`/`color` (keyword/match) are what make the "filter before semantic search" requirement true pre-filtering rather than post-hoc filtering. The same shape backs the local-JSON fallback store, where the filters run as Python predicates before cosine scoring.
+
 ### Agent Workflow
 
 `app/agent.py` runs a compact agentic workflow:
@@ -66,28 +92,32 @@ The default embedding implementation uses FastEmbed with `BAAI/bge-small-en-v1.5
 2. Extract intent from the prompt: gender, colors, occasion, budget, owned garments, style signals, and required categories.
 3. Query vector memory once per needed category, **pre-filtered by gender and budget** so the candidate set is already coherent.
 4. Rerank candidates with fashion-aware signals such as color harmony, summer fabrics, yacht/resort vocabulary, tech/pro/cool/nerdy vocabulary, and material suitability.
-5. **LLM-driven selection** — the model picks one coherent item per category from the reranked shortlist (see below).
-6. Generate a stylist note.
-7. Return a structured JSON payload.
+5. **LLM reasoning step** — in a single call, the model selects one coherent item per category from the reranked shortlist *and* writes the stylist note (see below).
+6. Return a structured JSON payload.
 
-The workflow is intentionally auditable. The response includes `trace`, so a reviewer can see the steps (`intent`, `retrieve_*`, `llm_select`, `rank`, `llm`) without exposing hidden chain-of-thought.
+The workflow is intentionally auditable. The response includes `trace`, so a reviewer can see the steps (`intent`, `retrieve_*`, `llm_compose`, `rank`) without exposing hidden chain-of-thought.
 
-### Selection: deterministic retrieval, LLM judgment
+This is a "native routing" agent in the assignment's sense: deterministic tools (retrieval, reranking, filtering) gather and shape the context, and the LLM makes the actual judgment call over that context. It is intentionally not a multi-hop LangChain/LangGraph loop — for a fixed three-step fashion task (retrieve → reason → compose) a single well-shaped reasoning call is more reliable, far cheaper, and easier to audit than an open-ended agent loop.
 
-Retrieval and reranking stay deterministic — they are cheap, fast, and explainable. The actual *outfit decision* is where fashion judgment matters, so it is delegated to the LLM: the agent sends a compact shortlist (top ~6 candidates per category, each as a small fact object — id, name, color, material, price, gender) plus the parsed intent, and asks the model to return strict JSON choosing one id per category with a one-line rationale. This is what the assignment means by "the LLM must evaluate fashion rules": the model harmonizes colors, honors the requested palette/budget, keeps formality consistent with the occasion, and avoids clashing with owned pieces.
+### The reasoning step: deterministic retrieval, LLM judgment, one call
 
-This is still frugal — the full catalog is never sent, only a handful of facts per category — and it degrades gracefully: if no LLM key is configured, or the call fails, or the model returns an unusable id, the agent falls back to deterministic selection (palette preference + color diversity). The previous bug where a brown top was chosen for a "cream and tan" brief is fixed because selection now reasons over the requested palette instead of just taking the top reranked hit.
+Retrieval and reranking stay deterministic — they are cheap, fast, and explainable. The actual *outfit decision* and the prose are where fashion judgment matters, so both are delegated to the LLM in **one combined call**: the agent sends a compact shortlist (top ~6 candidates per category, each a small fact object — id, name, brand, color, material, price, gender) plus the parsed intent, and asks the model to return strict JSON with both the chosen ids per category and the stylist note. This is what the assignment means by "the LLM must evaluate fashion rules": the model harmonizes colors, honors the requested palette/budget/gender, keeps formality consistent with the occasion, and complements owned pieces.
+
+Collapsing what used to be two LLM calls (select, then note) into one halves both token spend and request count — friendlier to free-tier rate limits and a concrete frugal-mindset win — and removes a failure point. The call uses `temperature=0.7` for inventive, characterful styling and `reasoning_effort=low` so reasoning-capable models (Groq's `gpt-oss`) emit clean JSON instead of burning the budget on hidden chain-of-thought.
+
+It degrades gracefully: if no LLM key is configured, or the call fails after retry/backoff, or the model returns unusable ids, the agent falls back to deterministic selection (palette preference + color diversity) and a templated note. The `token_strategy` field in the response reports exactly which path ran and the real token count spent.
 
 ### LLM Strategy
 
-The default `LLM_PROVIDER=local` mode uses a deterministic local stylist note generator. That makes the project fully runnable with no paid key. If `LLM_PROVIDER=groq` or `LLM_PROVIDER=openai` and an API key are configured, the app sends only compact item facts to an OpenAI-compatible chat completion endpoint.
+The hosted demo uses `LLM_PROVIDER=groq` with `openai/gpt-oss-120b` over Groq's OpenAI-compatible API. Setting `LLM_PROVIDER=local` (or simply leaving the key blank) runs a fully deterministic stylist with no paid key, so the project is always runnable. The HTTP call (`_chat_completion`) retries 429/5xx with exponential backoff that honors `Retry-After`, so a transient free-tier rate limit recovers instead of silently degrading.
 
 This prompt shape is frugal:
 
-- No full catalog is sent to the LLM.
-- Retrieval happens before note generation.
-- Only selected item names, colors, materials, categories, and prices are sent.
-- Responses are capped with `max_tokens`.
+- No full catalog is sent to the LLM — only ~6 candidate facts per needed category.
+- Retrieval and reranking happen first; the LLM sees a pre-filtered shortlist.
+- Selection and the note are one combined call, not two.
+- Responses are capped with `max_tokens` and `reasoning_effort=low`.
+- Similar prompts short-circuit on the semantic cache, skipping the LLM entirely.
 
 ### Semantic Cache
 

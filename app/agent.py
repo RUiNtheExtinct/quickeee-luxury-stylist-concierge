@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -198,7 +199,7 @@ class StylistAgent:
                 )
             )
 
-        selected = await self._select_outfit(request.prompt, candidate_map, intent, trace)
+        selected, llm_note, usage = await self._compose_with_llm(request.prompt, candidate_map, intent, trace)
         trace.append(
             AgentTraceStep(
                 step="rank",
@@ -206,7 +207,7 @@ class StylistAgent:
             )
         )
 
-        note = await self._stylist_note(request.prompt, selected, trace, intent)
+        note = llm_note or self._local_stylist_note(selected, intent)
         recommended_items = [self._to_recommendation(item, intent) for item in selected]
         response = StyleResponse(
             request_id=request_id,
@@ -216,15 +217,28 @@ class StylistAgent:
             total_price=round(sum(item.price for item in selected), 2),
             currency=request.currency,
             stylist_note=note,
-            token_strategy=(
-                f"Semantic cache checked before retrieval; catalog and prompt vectors use {self.embedding_label}; "
-                "LLM context is compressed to selected item facts and detected style signals."
-            ),
+            token_strategy=self._token_strategy(usage, used_llm=llm_note is not None),
             trace=trace if request.include_trace else [],
         )
         self.cache.put(request.prompt, response, variant=variant)
         logger.info("agent_response request_id=%s total=%.2f items=%s", request_id, response.total_price, len(selected))
         return response
+
+    def _token_strategy(self, usage: dict, *, used_llm: bool) -> str:
+        if not used_llm:
+            return (
+                "Frugal mode: deterministic selection and stylist note, zero LLM tokens spent. "
+                f"Retrieval embeddings via {self.embedding_label}; semantic cache short-circuits repeats."
+            )
+        total = usage.get("total_tokens")
+        prompt_t = usage.get("prompt_tokens")
+        completion_t = usage.get("completion_tokens")
+        spent = f"{total} tokens (prompt {prompt_t} + completion {completion_t})" if total is not None else "one compact call"
+        return (
+            "Frugal mode: one combined LLM call selects the outfit and writes the note (no full catalog sent, "
+            f"only ~6 candidate facts per category). Spent {spent}. Semantic cache short-circuits similar repeats; "
+            f"retrieval embeddings via {self.embedding_label} avoid any embedding-API spend."
+        )
 
     def _cache_variant(self, request: StyleRequest) -> str:
         # Bucket price so near-identical budgets still share a cache entry.
@@ -395,23 +409,81 @@ class StylistAgent:
             palette.update({"white", "navy", "olive", "brown"})
         return palette
 
-    async def _select_outfit(
+    async def _chat_completion(self, payload: dict, *, max_attempts: int = 4) -> tuple[dict, dict]:
+        """OpenAI-compatible chat call that rides out transient rate limits.
+
+        Returns (parsed_response_json, usage). The free Groq tier occasionally
+        returns 429 on bursty traffic even with budget remaining, so we retry
+        with exponential backoff (honoring Retry-After) rather than degrading to
+        the deterministic path on the first blip. The payload is small, so a few
+        retries cost little. Only raises after exhausting attempts, letting the
+        caller fall back deterministically as a last resort.
+        """
+
+        last_exc: Exception | None = None
+        async with httpx.AsyncClient(timeout=30) as client:
+            for attempt in range(max_attempts):
+                try:
+                    response = await client.post(
+                        f"{self.llm_base_url}/chat/completions",
+                        headers={"Authorization": f"Bearer {self.llm_api_key}"},
+                        json=payload,
+                    )
+                    if response.status_code in {429, 500, 502, 503, 529} and attempt < max_attempts - 1:
+                        retry_after = response.headers.get("retry-after")
+                        delay = (
+                            float(retry_after)
+                            if retry_after and retry_after.replace(".", "").isdigit()
+                            else 0.8 * (2**attempt)
+                        )
+                        delay = min(delay, 6.0)
+                        logger.warning(
+                            "LLM %s (attempt %s/%s); backing off %.1fs",
+                            response.status_code,
+                            attempt + 1,
+                            max_attempts,
+                            delay,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                    response.raise_for_status()
+                    data = response.json()
+                    return data, data.get("usage", {})
+                except httpx.HTTPError as exc:
+                    last_exc = exc
+                    if attempt < max_attempts - 1:
+                        await asyncio.sleep(0.8 * (2**attempt))
+                        continue
+                    raise
+        raise last_exc or RuntimeError("LLM call failed")
+
+    async def _compose_with_llm(
         self,
         prompt: str,
         candidate_map: dict[Category, list[SearchResult]],
         intent: Intent,
         trace: list[AgentTraceStep],
-    ) -> list[CatalogItem]:
-        """Let the LLM choose one coherent item per category from the retrieved shortlist.
+    ) -> tuple[list[CatalogItem], str | None, dict]:
+        """Pick the outfit AND write the stylist note in ONE LLM call.
 
-        Retrieval and reranking stay deterministic (cheap, auditable). Only a compact
-        shortlist of facts is sent to the model, which applies fashion-pairing judgment
-        the heuristics cannot. Falls back to deterministic selection on any failure.
+        Retrieval and reranking stay deterministic (cheap, auditable). A single
+        compact shortlist of item facts is sent to the model, which applies
+        fashion-pairing judgment the heuristics cannot and returns both the
+        chosen ids and the note as one structured-JSON response. Collapsing the
+        two former calls into one halves token spend and request count (frugal,
+        and friendlier to free-tier rate limits) and removes a failure point.
+        Returns (selected_items, note_or_None, token_usage). note is None when
+        the model path was unused, signalling the caller to use the local note.
         """
 
         if self.llm_provider.lower() not in {"groq", "openai"} or not self.llm_api_key:
-            return self._select_items(candidate_map, intent)
+            return self._select_items(candidate_map, intent), None, {}
 
+        # Give the model enough context to pair a genuinely good outfit: the top
+        # candidates per category with the facts that drive fashion decisions
+        # (name, color, material, price, gender). The payload is still compact
+        # (~hundreds of tokens — the full catalog is never sent), so this stays
+        # frugal without sacrificing recommendation quality.
         shortlist: dict[str, list[dict]] = {}
         id_lookup: dict[str, CatalogItem] = {}
         for category, results in candidate_map.items():
@@ -423,6 +495,7 @@ class StylistAgent:
                     {
                         "id": item.id,
                         "name": item.name,
+                        "brand": item.brand,
                         "color": item.color,
                         "material": item.material,
                         "price": item.price,
@@ -433,14 +506,16 @@ class StylistAgent:
                 shortlist[category.value] = options
 
         if not shortlist:
-            return self._select_items(candidate_map, intent)
+            return self._select_items(candidate_map, intent), None, {}
 
         instruction = (
-            "You are a luxury menswear/womenswear stylist building ONE coherent outfit. "
-            "Choose exactly one item id from each provided category. Apply fashion rules: "
-            "harmonize colors, respect the requested palette and budget, keep formality consistent "
-            "with the occasion, and avoid clashing the owned pieces the client mentioned. "
-            'Return STRICT JSON: {"picks": {"<category>": "<id>"}, "rationale": "<one short sentence>"}.'
+            "You are an inventive, world-class luxury stylist building ONE coherent outfit from the provided "
+            "candidates. Choose exactly one item id per category. Think like a creative director: harmonize "
+            "colors with intent (tonal, complementary, or a confident accent — not just safe matches), respect "
+            "the requested palette/budget/gender, keep formality consistent with the occasion, and complement "
+            "the owned pieces the client mentioned. Then write one vivid, characterful 'stylist_note' under 60 "
+            "words that sells the look and references only the chosen items. Return STRICT JSON only: "
+            '{"picks": {"<category>": "<id>"}, "stylist_note": "<note>"}.'
         )
         context = {
             "prompt": prompt,
@@ -460,20 +535,23 @@ class StylistAgent:
                 {"role": "system", "content": instruction},
                 {"role": "user", "content": json.dumps(context)},
             ],
-            "temperature": 0.2,
-            "max_tokens": 220,
+            # A stylist should be inventive, not robotic — higher temperature for
+            # more characterful pairings and prose.
+            "temperature": 0.7,
+            "max_tokens": 600,
             "response_format": {"type": "json_object"},
+            # Reasoning-capable models (e.g. Groq's gpt-oss) otherwise spend the
+            # token budget on internal chain-of-thought and can return malformed
+            # JSON. "low" keeps a touch of reasoning while emitting clean JSON
+            # fast. Ignored by non-reasoning models, so it's safe to always send.
+            "reasoning_effort": "low",
         }
         try:
-            async with httpx.AsyncClient(timeout=20) as client:
-                response = await client.post(
-                    f"{self.llm_base_url}/chat/completions",
-                    headers={"Authorization": f"Bearer {self.llm_api_key}"},
-                    json=payload,
-                )
-                response.raise_for_status()
-            content = response.json()["choices"][0]["message"]["content"]
-            picks = json.loads(content).get("picks", {})
+            data, usage = await self._chat_completion(payload)
+            content = data["choices"][0]["message"]["content"]
+            parsed = json.loads(content)
+            picks = parsed.get("picks", {})
+            note = (parsed.get("stylist_note") or "").strip() or None
             selected: list[CatalogItem] = []
             chosen_ids: set[str] = set()
             for category in intent.needs:
@@ -483,24 +561,25 @@ class StylistAgent:
                     chosen_ids.add(pick_id)
             # Backfill any category the model skipped with the deterministic top pick.
             if len(selected) < len(shortlist):
-                fallback = self._select_items(candidate_map, intent)
-                for item in fallback:
-                    if item.id not in chosen_ids and item.category in {c for c in intent.needs}:
-                        if not any(s.category == item.category for s in selected):
-                            selected.append(item)
-                            chosen_ids.add(item.id)
+                for item in self._select_items(candidate_map, intent):
+                    if item.id not in chosen_ids and not any(s.category == item.category for s in selected):
+                        selected.append(item)
+                        chosen_ids.add(item.id)
             if selected:
                 trace.append(
                     AgentTraceStep(
-                        step="llm_select",
-                        detail=f"{self.llm_provider}:{self.llm_model} chose {len(selected)} items from shortlist",
+                        step="llm_compose",
+                        detail=(
+                            f"{self.llm_provider}:{self.llm_model} chose {len(selected)} items and wrote the note "
+                            f"in one call ({usage.get('total_tokens', '?')} tokens)"
+                        ),
                     )
                 )
-                return self._order_by_needs(selected, intent)
+                return self._order_by_needs(selected, intent), note, usage
         except Exception as exc:  # pragma: no cover - external provider fallback
-            logger.warning("LLM selection failed, using deterministic selection: %s", exc)
-            trace.append(AgentTraceStep(step="llm_select_fallback", detail="LLM selection failed; used deterministic selection"))
-        return self._select_items(candidate_map, intent)
+            logger.warning("LLM compose failed, using deterministic selection + note: %s", exc)
+            trace.append(AgentTraceStep(step="llm_fallback", detail=f"LLM unavailable ({type(exc).__name__}); used deterministic stylist"))
+        return self._select_items(candidate_map, intent), None, {}
 
     def _order_by_needs(self, selected: list[CatalogItem], intent: Intent) -> list[CatalogItem]:
         order = {category: index for index, category in enumerate(intent.needs)}
@@ -564,63 +643,6 @@ class StylistAgent:
         if intent.occasions:
             return ", ".join(sorted(intent.occasions))
         return "client"
-
-    async def _stylist_note(
-        self,
-        prompt: str,
-        selected: list[CatalogItem],
-        trace: list[AgentTraceStep],
-        intent: Intent,
-    ) -> str:
-        if self.llm_provider.lower() not in {"groq", "openai"} or not self.llm_api_key:
-            return self._local_stylist_note(selected, intent)
-        compact_items = [
-            {
-                "name": item.name,
-                "brand": item.brand,
-                "category": item.category.value,
-                "color": item.color,
-                "material": item.material,
-                "price": item.price,
-            }
-            for item in selected
-        ]
-        style_payload = {
-            "style_profile": self._style_profile(intent),
-            "style_signals": sorted(intent.style_signals),
-            "occasions": sorted(intent.occasions),
-            "colors": sorted(intent.colors),
-            "query_terms": sorted(intent.query_terms),
-        }
-        payload = {
-            "model": self.llm_model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a concise luxury menswear stylist. Return one elegant note under 70 words. "
-                        "Do not mention unavailable products."
-                    ),
-                },
-                {"role": "user", "content": json.dumps({"prompt": prompt, "intent": style_payload, "items": compact_items})},
-            ],
-            "temperature": 0.35,
-            "max_tokens": 120,
-        }
-        try:
-            async with httpx.AsyncClient(timeout=20) as client:
-                response = await client.post(
-                    f"{self.llm_base_url}/chat/completions",
-                    headers={"Authorization": f"Bearer {self.llm_api_key}"},
-                    json=payload,
-                )
-                response.raise_for_status()
-            trace.append(AgentTraceStep(step="llm", detail=f"generated stylist note with {self.llm_provider}:{self.llm_model}"))
-            return response.json()["choices"][0]["message"]["content"].strip()
-        except Exception as exc:  # pragma: no cover - external provider fallback
-            logger.warning("LLM provider failed, falling back to local note: %s", exc)
-            trace.append(AgentTraceStep(step="llm_fallback", detail="external LLM failed; used local deterministic stylist"))
-            return self._local_stylist_note(selected, intent)
 
     def _local_stylist_note(self, selected: list[CatalogItem], intent: Intent) -> str:
         colors = ", ".join(dict.fromkeys(item.color for item in selected))

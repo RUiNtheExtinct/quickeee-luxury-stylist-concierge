@@ -227,7 +227,32 @@ async def scrape_shopify_catalog(delay_min: float, delay_max: float, timeout: fl
     items: list[CatalogItem] = []
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
         for brand in BRANDS:
-            await asyncio.sleep(random.uniform(delay_min, delay_max))
+            try:
+                products = await fetch_brand_products(client, brand, delay_min, delay_max)
+            except Exception as exc:  # noqa: BLE001 - one brand failing must not abort the run
+                print(f"WARN: {brand['brand']} feed failed ({exc}); skipping. Try --use-playwright for DOM fallback.")
+                continue
+            for product in products:
+                item = normalize_product(brand, product)
+                if item:
+                    items.append(item)
+    return dedupe(items)
+
+
+async def fetch_brand_products(
+    client: httpx.AsyncClient, brand: dict[str, str], delay_min: float, delay_max: float, max_attempts: int = 4
+) -> list[dict[str, Any]]:
+    """Fetch a Shopify product feed politely, with retry/backoff on rate limits.
+
+    Rate-limit handling (the assignment's "bypass basic rate limits"): randomized
+    user agents, jittered delays, and exponential backoff that honors Retry-After
+    on 429/503 instead of hammering or crashing.
+    """
+
+    last_exc: Exception | None = None
+    for attempt in range(max_attempts):
+        await asyncio.sleep(random.uniform(delay_min, delay_max) * (1 + attempt))
+        try:
             response = await client.get(
                 brand["products_url"],
                 headers={
@@ -236,13 +261,21 @@ async def scrape_shopify_catalog(delay_min: float, delay_max: float, timeout: fl
                     "Accept-Language": "en-US,en;q=0.9",
                 },
             )
+            if response.status_code in {429, 503} and attempt < max_attempts - 1:
+                retry_after = response.headers.get("retry-after")
+                delay = float(retry_after) if retry_after and retry_after.replace(".", "").isdigit() else 2.0 * (2**attempt)
+                print(f"INFO: {brand['brand']} returned {response.status_code}; backing off {delay:.1f}s")
+                await asyncio.sleep(min(delay, 30.0))
+                continue
             response.raise_for_status()
-            payload = response.json()
-            for product in payload.get("products", []):
-                item = normalize_product(brand, product)
-                if item:
-                    items.append(item)
-    return dedupe(items)
+            return response.json().get("products", [])
+        except httpx.HTTPError as exc:
+            last_exc = exc
+            if attempt < max_attempts - 1:
+                await asyncio.sleep(2.0 * (2**attempt))
+                continue
+            raise
+    raise last_exc or RuntimeError(f"failed to fetch {brand['brand']}")
 
 
 def normalize_product(brand: dict[str, str], product: dict[str, Any]) -> CatalogItem | None:
@@ -515,15 +548,66 @@ def dedupe(items: list[CatalogItem]) -> list[CatalogItem]:
     return deduped
 
 
+def playwright_records_to_items(records: list[dict[str, str]], source: str) -> list[CatalogItem]:
+    """Turn raw DOM card text into CatalogItems via the same classify/extract helpers.
+
+    Best-effort: the JSON feed is richer, so this only runs when a feed is blocked.
+    """
+
+    items: list[CatalogItem] = []
+    for record in records:
+        text = record.get("text", "")
+        first_line = text.split("\n", 1)[0].strip() if text else ""
+        category = classify(text.lower())
+        price = parse_price(next((tok for tok in re.findall(r"\$?\d[\d,]*\.?\d*", text)), ""))
+        if not first_line or category is None or price <= 0:
+            continue
+        items.append(
+            CatalogItem(
+                id=stable_id(f"{source}:{first_line}:{record.get('image_url','')}"),
+                brand=source.split("//")[-1].split(".")[0].title(),
+                source=source,
+                name=first_line[:80],
+                price=price,
+                currency="USD",
+                image_url=record.get("image_url", ""),
+                product_url=record.get("source_url", source),
+                category=category,
+                gender=detect_gender(product_type="", handle="", tags=text.lower().split(), source=source),
+                description=text[:300],
+                color=extract_color(text) or "unknown",
+                material=extract_material(text) or "unknown",
+                tags=[],
+            )
+        )
+    return dedupe(items)
+
+
 async def main() -> None:
     parser = argparse.ArgumentParser(description="Scrape public apparel catalogs into clean JSON.")
     parser.add_argument("--output", default="data/catalog.live.json")
     parser.add_argument("--delay-min", type=float, default=0.8)
     parser.add_argument("--delay-max", type=float, default=2.2)
     parser.add_argument("--timeout", type=float, default=30.0)
+    parser.add_argument(
+        "--use-playwright",
+        action="store_true",
+        help="Use the Playwright DOM scraper instead of Shopify JSON feeds (for JS-heavy or feed-blocked sites).",
+    )
+    parser.add_argument(
+        "--collection-urls",
+        nargs="*",
+        default=[brand["source"] for brand in BRANDS],
+        help="Collection page URLs to scrape when --use-playwright is set.",
+    )
     args = parser.parse_args()
 
-    items = await scrape_shopify_catalog(args.delay_min, args.delay_max, args.timeout)
+    if args.use_playwright:
+        records = await scrape_with_playwright(args.collection_urls)
+        source = args.collection_urls[0] if args.collection_urls else "https://example.com"
+        items = playwright_records_to_items(records, source)
+    else:
+        items = await scrape_shopify_catalog(args.delay_min, args.delay_max, args.timeout)
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps([item.model_dump(mode="json") for item in items], indent=2))

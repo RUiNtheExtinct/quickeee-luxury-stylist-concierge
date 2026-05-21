@@ -37,9 +37,12 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
+    # Public, credential-free JSON API: wildcard origins are fine, but
+    # allow_credentials must stay False — the two are invalid together per the
+    # CORS spec, and browsers refuse credentialed wildcard requests anyway.
     allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "HEAD", "OPTIONS"],
     allow_headers=["*"],
 )
 
