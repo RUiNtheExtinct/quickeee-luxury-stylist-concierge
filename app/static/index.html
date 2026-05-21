@@ -21,7 +21,7 @@
     <link rel="stylesheet" href="/static/styles.css" />
     <script defer src="/static/vendor/lucide.js"></script>
   </head>
-  <body class="atelier-mode">
+  <body class="atelier-mode is-precompose">
     <div class="grain" aria-hidden="true"></div>
 
     <header class="masthead">
@@ -48,31 +48,35 @@
     </header>
 
     <main class="shell">
-      <!-- ░░ BRIEF ░░ -->
-      <section class="brief" aria-label="Stylist console">
+      <!-- ░░ HERO / BRIEF — single centered composer ░░ -->
+      <section class="hero" aria-label="Stylist console">
         <p class="kicker"><span class="rule"></span> The brief</p>
         <h1 class="display">
           Describe the room.<br />
           We compose the <em>look</em>.
         </h1>
+        <p class="hero-lede">
+          Name what you own, the occasion, the weather, a budget, who it's for. The agent retrieves only
+          available inventory, reasons over fashion rules, and returns a styled outfit.
+        </p>
 
         <form id="stylist-form" class="brief-form">
           <div class="field">
             <label for="prompt">Client brief</label>
-            <textarea id="prompt" name="prompt" rows="4" spellcheck="false">I have dark navy chinos, what t-shirt and shoes should I wear for a summer yacht party?</textarea>
+            <textarea id="prompt" name="prompt" rows="3" spellcheck="false">I have dark navy chinos, what t-shirt and shoes should I wear for a summer yacht party?</textarea>
           </div>
           <div class="brief-controls">
             <label class="price-field">
               <span>Ceiling</span>
               <div class="price-input">
-                <i>$</i>
-                <input id="max-price" type="number" min="1" inputmode="numeric" placeholder="none" />
+                <i aria-hidden="true">$</i>
+                <input id="max-price" type="number" min="1" inputmode="numeric" placeholder="none" aria-label="Price ceiling" />
               </div>
             </label>
             <button class="compose" type="submit">
-              <span class="compose-label">Compose the look</span>
               <span class="compose-spinner" aria-hidden="true"></span>
-              <i data-lucide="arrow-right"></i>
+              <span class="compose-label">Compose the look</span>
+              <i data-lucide="arrow-right" aria-hidden="true"></i>
             </button>
           </div>
         </form>
@@ -80,14 +84,14 @@
         <div class="templates" aria-label="Brief templates">
           <span class="templates-label">Try a brief</span>
           <div class="chips">
-            <button data-prompt="Build a polished outfit for an outdoor founder dinner in warm weather under $450.">Founder dinner</button>
-            <button data-prompt="I own black jeans. Give me a sharp top and shoes for a gallery opening.">Gallery opening</button>
-            <button data-prompt="Style a relaxed resort look for a beach club lunch with linen pieces.">Resort lunch</button>
-            <button data-prompt="I have olive trousers. Style a quiet luxury airport look for a long-haul flight.">Airport lounge</button>
-            <button data-prompt="Create a refined date-night outfit for a rooftop cocktail bar with navy and cream tones.">Rooftop date</button>
-            <button data-prompt="Style my wife a relaxed resort look for a beach club lunch with linen pieces.">For her · resort</button>
-            <button data-prompt="Style a minimal weekend look around white sneakers and light chinos.">Weekend edit</button>
-            <button data-prompt="Build a polished beach wedding guest outfit with no black pieces.">Beach wedding</button>
+            <button type="button" data-prompt="Build a polished outfit for an outdoor founder dinner in warm weather under $450.">Founder dinner</button>
+            <button type="button" data-prompt="I own black jeans. Give me a sharp top and shoes for a gallery opening.">Gallery opening</button>
+            <button type="button" data-prompt="Style a relaxed resort look for a beach club lunch with linen pieces.">Resort lunch</button>
+            <button type="button" data-prompt="I have olive trousers. Style a quiet luxury airport look for a long-haul flight.">Airport lounge</button>
+            <button type="button" data-prompt="Create a refined date-night outfit for a rooftop cocktail bar with navy and cream tones.">Rooftop date</button>
+            <button type="button" data-prompt="Style my wife a relaxed resort look for a beach club lunch with linen pieces.">For her · resort</button>
+            <button type="button" data-prompt="Style a minimal weekend look around white sneakers and light chinos.">Weekend edit</button>
+            <button type="button" data-prompt="Build a polished beach wedding guest outfit with no black pieces.">Beach wedding</button>
           </div>
         </div>
 
@@ -95,40 +99,19 @@
           <div><dt id="catalog-count">···</dt><dd>indexed pieces</dd></div>
           <div><dt id="vector-backend">···</dt><dd>vector memory</dd></div>
           <div><dt id="cache-state">cold</dt><dd>semantic cache</dd></div>
+          <div><dt>3-step</dt><dd>retrieve · reason · compose</dd></div>
         </dl>
       </section>
 
-      <!-- ░░ THE LOOK ░░ -->
-      <section class="stage" aria-label="Recommendation">
+      <!-- ░░ THE LOOK — revealed after first compose ░░ -->
+      <section class="stage" id="stage-section" aria-label="Recommendation" hidden>
         <div class="stage-head">
           <p class="kicker"><span class="rule"></span> <span id="result-eyebrow">The selection</span></p>
-          <h2 class="stage-title" id="result-title">Awaiting the brief</h2>
+          <h2 class="stage-title" id="result-title">Composing your look</h2>
           <strong class="stage-total" id="total-price">$0</strong>
         </div>
 
-        <div id="items" class="looks empty">
-          <div class="empty-state">
-            <div class="empty-frame" aria-hidden="true">
-              <div class="empty-swatches">
-                <span class="sw navy"></span><span class="sw ivory"></span><span class="sw tan"></span>
-              </div>
-              <span class="empty-num">01 — 03</span>
-            </div>
-            <div class="empty-copy">
-              <p class="eyebrow">Before the first look</p>
-              <h3>Tell the concierge what the room should feel like.</h3>
-              <p>
-                Name the pieces you own, the occasion, the weather, a budget, who it's for. The agent retrieves
-                only available inventory, reasons over fashion rules, and returns a styled JSON payload.
-              </p>
-              <ol class="flow">
-                <li><span>01</span> Retrieve</li>
-                <li><span>02</span> Reason</li>
-                <li><span>03</span> Compose</li>
-              </ol>
-            </div>
-          </div>
-        </div>
+        <div id="items" class="looks"></div>
 
         <figure class="note" hidden id="note-wrap">
           <blockquote id="stylist-note"></blockquote>
@@ -145,25 +128,26 @@
         </section>
 
         <details class="panel trace-panel" open>
-          <summary><i data-lucide="route"></i> Agent trace</summary>
+          <summary><i data-lucide="route" aria-hidden="true"></i> Agent trace</summary>
           <ol id="trace" class="trace"></ol>
         </details>
 
         <details class="panel json-panel">
-          <summary><i data-lucide="file-json"></i> Response JSON</summary>
+          <summary><i data-lucide="file-json" aria-hidden="true"></i> Response JSON</summary>
           <pre id="response-json">{}</pre>
         </details>
       </section>
 
-      <!-- ░░ INVENTORY ░░ -->
+      <!-- ░░ INVENTORY — isolated, below the fold, lazy on scroll ░░ -->
       <section class="inventory" aria-label="Catalog preview">
         <div class="inventory-head">
           <p class="kicker"><span class="rule"></span> Indexed inventory</p>
-          <span id="rail-count">Showing 0 pieces</span>
+          <span id="rail-count">Loading inventory…</span>
         </div>
-        <div id="rail" class="rail"></div>
-        <button id="load-more" type="button" class="load-more">
-          <span>Load more inventory</span><i data-lucide="plus"></i>
+        <div id="rail" class="rail" aria-live="polite"></div>
+        <div id="inventory-sentinel" aria-hidden="true"></div>
+        <button id="load-more" type="button" class="load-more" hidden>
+          <span>Load more inventory</span><i data-lucide="plus" aria-hidden="true"></i>
         </button>
       </section>
     </main>

@@ -2,6 +2,8 @@ const form = document.querySelector("#stylist-form");
 const promptInput = document.querySelector("#prompt");
 const maxPriceInput = document.querySelector("#max-price");
 const itemsEl = document.querySelector("#items");
+const stageSection = document.querySelector("#stage-section");
+const inventorySentinel = document.querySelector("#inventory-sentinel");
 const traceEl = document.querySelector("#trace");
 const noteEl = document.querySelector("#stylist-note");
 const noteWrap = document.querySelector("#note-wrap");
@@ -51,8 +53,15 @@ async function loadRail() {
   catalogLoading = true;
   loadMoreButton.disabled = true;
   loadMoreButton.querySelector("span").textContent = "Loading inventory";
-  const response = await fetch(`/api/v1/catalog?limit=${catalogPageSize}&offset=${catalogOffset}`);
-  const data = await response.json();
+  let data = [];
+  try {
+    const response = await fetch(`/api/v1/catalog?limit=${catalogPageSize}&offset=${catalogOffset}`);
+    data = await response.json();
+  } catch {
+    catalogLoading = false;
+    railCountEl.textContent = "Inventory unavailable";
+    return;
+  }
   railEl.insertAdjacentHTML(
     "beforeend",
     data
@@ -79,7 +88,7 @@ async function loadRail() {
 }
 
 function renderItems(items) {
-  itemsEl.classList.remove("empty");
+  itemsEl.classList.remove("empty", "is-loading");
   itemsEl.innerHTML = items
     .map((item, index) => {
       const gender = item.gender && item.gender !== "unisex" ? `${escapeHtml(item.gender)}'s` : "unisex";
@@ -105,6 +114,24 @@ function renderItems(items) {
         </article>
       `;
     })
+    .join("");
+}
+
+function renderSkeleton(count = 3) {
+  itemsEl.classList.add("is-loading");
+  itemsEl.innerHTML = Array.from({ length: count })
+    .map(
+      () => `
+        <div class="skeleton">
+          <div class="sk-media shimmer"></div>
+          <div class="sk-lines">
+            <div class="sk-line short shimmer"></div>
+            <div class="sk-line med shimmer"></div>
+            <div class="sk-line shimmer"></div>
+          </div>
+        </div>
+      `,
+    )
     .join("");
 }
 
@@ -137,10 +164,16 @@ async function submitPrompt(event) {
   if (!prompt) return;
 
   form.classList.add("loading");
+  stageSection.hidden = false;
   eyebrowEl.textContent = "Composing";
-  titleEl.textContent = "Retrieving inventory";
+  titleEl.textContent = "Composing your look";
+  totalEl.textContent = "···";
+  noteWrap.hidden = true;
+  renderSkeleton();
   traceEl.innerHTML = "<li>Retrieving inventory…</li>";
   responseJsonEl.textContent = "{}";
+  // Scroll the result into view immediately so the user sees progress.
+  stageSection.scrollIntoView({ behavior: "smooth", block: "start" });
 
   try {
     const payload = { prompt, include_trace: true };
@@ -165,7 +198,6 @@ async function submitPrompt(event) {
     titleEl.textContent = data.cache_hit ? "Recalled look" : "Look composed";
     cacheEl.textContent = data.cache_hit ? "hit" : "stored";
     debugCache.textContent = data.cache_hit ? "hit" : "stored";
-    document.querySelector(".stage").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
     eyebrowEl.textContent = "Needs attention";
     titleEl.textContent = "The concierge paused";
@@ -190,9 +222,14 @@ function readableError(errorText) {
 
 function updateRailCount() {
   const visible = Math.min(catalogOffset, catalogTotal || catalogOffset);
-  railCountEl.textContent = catalogTotal ? `Showing ${visible} of ${catalogTotal}` : `Showing ${visible} pieces`;
+  if (!catalogOffset && !catalogTotal) {
+    railCountEl.textContent = "Loading inventory…";
+  } else {
+    railCountEl.textContent = catalogTotal ? `Showing ${visible} of ${catalogTotal}` : `Showing ${visible} pieces`;
+  }
   loadMoreButton.disabled = catalogLoading || catalogComplete;
-  loadMoreButton.hidden = catalogComplete;
+  // Only show the manual button once at least one page is in; scroll handles the rest.
+  loadMoreButton.hidden = catalogComplete || catalogOffset === 0;
   loadMoreButton.querySelector("span").textContent = catalogComplete ? "Inventory loaded" : "Load more inventory";
 }
 
@@ -249,6 +286,7 @@ promptInput.addEventListener("keydown", (event) => {
 loadMoreButton.addEventListener("click", loadRail);
 
 form.addEventListener("submit", submitPrompt);
+
 let savedMode = "atelier";
 try {
   savedMode = window.localStorage?.getItem("quickeee-mode") || "atelier";
@@ -256,4 +294,36 @@ try {
   savedMode = "atelier";
 }
 setMode(savedMode);
-Promise.all([loadHealth(), loadRail()]).finally(refreshIcons);
+
+// Reveal the app only once fonts have painted — prevents the FOUC where the
+// serif/icons hadn't loaded and ghost buttons blended into the paper.
+function revealApp() {
+  document.body.classList.add("fonts-ready");
+  refreshIcons();
+}
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(revealApp);
+  // Safety net in case fonts.ready never resolves (e.g. blocked CDN).
+  setTimeout(revealApp, 1200);
+} else {
+  revealApp();
+}
+
+// Lazy-load inventory only when the user scrolls near it — keeps first paint
+// fast and stops the heavy image grid from ever bleeding into the hero.
+if ("IntersectionObserver" in window && inventorySentinel) {
+  const observer = new IntersectionObserver(
+    (entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        loadRail();
+        if (catalogComplete) observer.disconnect();
+      }
+    },
+    { rootMargin: "300px 0px" },
+  );
+  observer.observe(inventorySentinel);
+} else {
+  loadRail();
+}
+
+loadHealth();

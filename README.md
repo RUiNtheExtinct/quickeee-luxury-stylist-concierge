@@ -4,11 +4,11 @@ An end-to-end Gen AI and data engineering assignment for a premium fashion conci
 
 ## What It Does
 
-![Quickeee atelier empty state](docs/redesign-empty.png)
+![Quickeee atelier — the brief](docs/ui-empty.png)
 
-![Quickeee composed look](docs/redesign-stage.png)
+![Quickeee composed look](docs/ui-look.png)
 
-![Quickeee engineer mode](docs/redesign-engineer-stage.png)
+![Quickeee engineer mode](docs/ui-engineer.png)
 
 - Live demo: `https://quickeee-luxury-stylist.onrender.com`
 - Swagger/API docs: `https://quickeee-luxury-stylist.onrender.com/docs`
