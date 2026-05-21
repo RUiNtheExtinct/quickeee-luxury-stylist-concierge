@@ -9,7 +9,7 @@ from app.models import StyleResponse
 
 
 class SemanticCache:
-    def __init__(self, path: Path, embedder: Embedder, threshold: float = 0.94, namespace: str = "style-agent-v4") -> None:
+    def __init__(self, path: Path, embedder: Embedder, threshold: float = 0.94, namespace: str = "style-agent-v5") -> None:
         self.path = path
         self.embedder = embedder
         self.threshold = threshold
@@ -17,13 +17,17 @@ class SemanticCache:
         self._entries: list[dict] = []
         self._loaded = False
 
-    def get(self, prompt: str) -> StyleResponse | None:
+    def get(self, prompt: str, variant: str = "") -> StyleResponse | None:
         self._load()
         vector = self.embedder.embed(prompt)
         best = None
         best_score = -1.0
         for entry in self._entries:
             if entry.get("namespace") != self.namespace or entry.get("embedding_model") != self.embedder.cache_key:
+                continue
+            # Only reuse a response generated under the same request knobs
+            # (gender, accessories, budget) — otherwise prefs would be ignored.
+            if entry.get("variant", "") != variant:
                 continue
             score = cosine_similarity(vector, entry["vector"])
             if score > best_score:
@@ -34,13 +38,14 @@ class SemanticCache:
             return response.model_copy(update={"cache_hit": True})
         return None
 
-    def put(self, prompt: str, response: StyleResponse) -> None:
+    def put(self, prompt: str, response: StyleResponse, variant: str = "") -> None:
         self._load()
         response_for_cache = response.model_copy(update={"cache_hit": False})
         self._entries.append(
             {
                 "namespace": self.namespace,
                 "embedding_model": self.embedder.cache_key,
+                "variant": variant,
                 "prompt": prompt,
                 "vector": self.embedder.embed(prompt),
                 "created_at": int(time.time()),

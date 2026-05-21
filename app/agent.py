@@ -9,7 +9,17 @@ from dataclasses import dataclass
 import httpx
 
 from app.cache import SemanticCache
-from app.models import AgentTraceStep, CatalogItem, Category, Gender, RecommendedItem, StyleRequest, StyleResponse
+from app.models import (
+    AccessoryMode,
+    AgentTraceStep,
+    CatalogItem,
+    Category,
+    Gender,
+    RecommendedItem,
+    StyleRequest,
+    StyleResponse,
+    StylingFor,
+)
 from app.vector_store import SearchResult, VectorStore
 
 logger = logging.getLogger(__name__)
@@ -113,6 +123,7 @@ class Intent:
     needs: list[Category]
     max_price: float | None
     gender: Gender
+    avoid_bags: bool = False
 
 
 class StylistAgent:
@@ -136,9 +147,12 @@ class StylistAgent:
         self.embedding_label = embedding_label
 
     async def recommend(self, request: StyleRequest) -> StyleResponse:
-        cached = self.cache.get(request.prompt)
+        # Scope the cache by the request knobs so different prefs never collide
+        # on the same prompt text.
+        variant = self._cache_variant(request)
+        cached = self.cache.get(request.prompt, variant=variant)
         if cached:
-            logger.info("semantic_cache_hit prompt=%r", request.prompt)
+            logger.info("semantic_cache_hit prompt=%r variant=%s", request.prompt, variant)
             return cached
 
         trace: list[AgentTraceStep] = []
@@ -153,7 +167,9 @@ class StylistAgent:
                     f"style_signals={sorted(intent.style_signals) or 'none'}, "
                     f"query_terms={sorted(intent.query_terms) or 'none'}, "
                     f"owned_bottom={intent.owned_bottom}, needs={[need.value for need in intent.needs]}, "
-                    f"max_price={intent.max_price or 'none'}"
+                    f"max_price={intent.max_price or 'none'}, "
+                    f"gender_source={'override' if request.gender != StylingFor.either else 'inferred'}, "
+                    f"accessories={request.accessories.value}, avoid_bags={intent.avoid_bags}"
                 ),
             )
         )
@@ -169,7 +185,12 @@ class StylistAgent:
                 genders=gender_filter,
                 limit=10,
             )
-            candidate_map[category] = self._rerank(candidates, intent)
+            ranked = self._rerank(candidates, intent)
+            if category == Category.accessory and intent.avoid_bags:
+                non_bags = [r for r in ranked if not self._is_bag(r.item)]
+                # Only drop bags if non-bag accessories remain, so we never empty the slot.
+                ranked = non_bags or ranked
+            candidate_map[category] = ranked
             trace.append(
                 AgentTraceStep(
                     step=f"retrieve_{category.value}",
@@ -201,9 +222,14 @@ class StylistAgent:
             ),
             trace=trace if request.include_trace else [],
         )
-        self.cache.put(request.prompt, response)
+        self.cache.put(request.prompt, response, variant=variant)
         logger.info("agent_response request_id=%s total=%.2f items=%s", request_id, response.total_price, len(selected))
         return response
+
+    def _cache_variant(self, request: StyleRequest) -> str:
+        # Bucket price so near-identical budgets still share a cache entry.
+        price_bucket = int(request.max_price // 50) if request.max_price else 0
+        return f"g={request.gender.value};a={request.accessories.value};p={price_bucket};cur={request.currency}"
 
     def _extract_intent(self, request: StyleRequest) -> Intent:
         prompt = request.prompt.lower()
@@ -218,13 +244,17 @@ class StylistAgent:
             colors.update(STYLE_SIGNALS.get(signal, {}).get("colors", set()))
         owned_bottom = any(pattern.search(request.prompt) for pattern in OWNED_BOTTOM_PATTERNS)
         needs = [Category.top, Category.shoe] if owned_bottom else [Category.top, Category.bottom, Category.shoe]
-        if self._should_add_accessory(prompt, style_signals, owned_bottom):
+        # Whether the prompt itself asks for a bag/accessory, so auto-mode can allow one.
+        wants_bag = bool(re.search(r"\b(bag|tote|backpack|weekender|pouch|holdall|carryall)\b", prompt))
+        if self._should_add_accessory(prompt, style_signals, owned_bottom, request.accessories, wants_bag):
             needs.append(Category.accessory)
         if "shirt" in prompt or "t-shirt" in prompt or "tee" in prompt:
             needs = [category for category in needs if category != Category.top]
             needs.insert(0, Category.top)
         max_price = request.max_price or self._extract_budget(prompt)
-        gender = self._extract_gender(request.prompt)
+        gender = self._extract_gender(request.prompt, request.gender)
+        # In auto accessory mode, steer away from bags unless the prompt asked.
+        avoid_bags = request.accessories == AccessoryMode.auto and not wants_bag
         return Intent(
             colors=colors,
             occasions=occasions,
@@ -234,16 +264,22 @@ class StylistAgent:
             needs=needs,
             max_price=max_price,
             gender=gender,
+            avoid_bags=avoid_bags,
         )
 
-    def _extract_gender(self, prompt: str) -> Gender:
+    def _extract_gender(self, prompt: str, override: StylingFor) -> Gender:
+        # An explicit UI/API choice always wins over prompt inference.
+        if override == StylingFor.men:
+            return Gender.men
+        if override == StylingFor.women:
+            return Gender.women
         has_women = bool(WOMEN_INTENT.search(prompt))
         has_men = bool(MEN_INTENT.search(prompt))
         if has_women and not has_men:
             return Gender.women
         if has_men and not has_women:
             return Gender.men
-        # No explicit signal: default to the catalog's dominant menswear brief.
+        # No explicit signal at all: default to the catalog's dominant menswear brief.
         return Gender.men
 
     def _gender_filter(self, gender: Gender) -> set[Gender]:
@@ -272,12 +308,23 @@ class StylistAgent:
             terms.update(STYLE_SIGNALS.get(signal, {}).get("terms", set()))
         return terms
 
-    def _should_add_accessory(self, prompt: str, style_signals: set[str], owned_bottom: bool) -> bool:
-        if any(term in prompt for term in ["accessory", "finish", "complete outfit", "full look"]):
+    def _should_add_accessory(
+        self, prompt: str, style_signals: set[str], owned_bottom: bool, mode: AccessoryMode, wants_bag: bool
+    ) -> bool:
+        if mode == AccessoryMode.off:
+            return False
+        if mode == AccessoryMode.on:
             return True
-        if style_signals and not owned_bottom:
+        # auto: only when the prompt implies a finished look or names an accessory/bag.
+        if wants_bag:
+            return True
+        if any(term in prompt for term in ["accessory", "accessories", "finish", "complete outfit", "full look"]):
             return True
         return False
+
+    def _is_bag(self, item: CatalogItem) -> bool:
+        text = f"{item.name} {' '.join(item.tags)}".lower()
+        return bool(re.search(r"\b(bag|tote|backpack|weekender|holdall|carryall|satchel|purse|clutch)\b", text))
 
     def _extract_budget(self, prompt: str) -> float | None:
         match = re.search(r"(?:under|below|less than|max|budget)\s*\$?(\d{2,5})", prompt)

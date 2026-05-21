@@ -23,7 +23,43 @@ const debugCache = document.querySelector("#debug-cache");
 const debugEmbedding = document.querySelector("#debug-embedding");
 const debugLlm = document.querySelector("#debug-llm");
 
+const genderSeg = document.querySelector("#gender-seg");
+const accessorySeg = document.querySelector("#accessory-seg");
+
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+
+// Sticky styling preferences (no accounts — just this browser).
+const prefs = { gender: "either", accessories: "auto" };
+function loadPrefs() {
+  try {
+    prefs.gender = window.localStorage?.getItem("quickeee-gender") || "either";
+    prefs.accessories = window.localStorage?.getItem("quickeee-accessories") || "auto";
+  } catch {
+    /* storage may be unavailable */
+  }
+  applySegState(genderSeg, "gender", prefs.gender);
+  applySegState(accessorySeg, "accessories", prefs.accessories);
+}
+function applySegState(group, key, value) {
+  if (!group) return;
+  group.querySelectorAll("button").forEach((button) => {
+    button.classList.toggle("active", button.dataset[key] === value);
+  });
+}
+function wireSegment(group, key, storageKey) {
+  if (!group) return;
+  group.querySelectorAll("button").forEach((button) => {
+    button.addEventListener("click", () => {
+      prefs[key] = button.dataset[key];
+      applySegState(group, key, prefs[key]);
+      try {
+        window.localStorage?.setItem(storageKey, prefs[key]);
+      } catch {
+        /* ignore */
+      }
+    });
+  });
+}
 const catalogPageSize = 100;
 let catalogTotal = 0;
 let catalogOffset = 0;
@@ -176,7 +212,7 @@ async function submitPrompt(event) {
   stageSection.scrollIntoView({ behavior: "smooth", block: "start" });
 
   try {
-    const payload = { prompt, include_trace: true };
+    const payload = { prompt, include_trace: true, gender: prefs.gender, accessories: prefs.accessories };
     if (maxPriceInput.value) payload.max_price = Number(maxPriceInput.value);
     const response = await fetch("/api/v1/style-me", {
       method: "POST",
@@ -294,6 +330,9 @@ try {
   savedMode = "atelier";
 }
 setMode(savedMode);
+loadPrefs();
+wireSegment(genderSeg, "gender", "quickeee-gender");
+wireSegment(accessorySeg, "accessories", "quickeee-accessories");
 
 // Reveal the app only once fonts have painted — prevents the FOUC where the
 // serif/icons hadn't loaded and ghost buttons blended into the paper.

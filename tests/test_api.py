@@ -48,6 +48,7 @@ def test_tech_nerdy_party_prompt_drives_style_signals_and_accessory():
             "/api/v1/style-me",
             json={
                 "prompt": "I want to go to a suave tech bro party and want to look cool and nerdy.",
+                "accessories": "on",
                 "include_trace": True,
             },
         )
@@ -59,6 +60,7 @@ def test_tech_nerdy_party_prompt_drives_style_signals_and_accessory():
     assert "suave" in intent_detail
     assert "cool" in intent_detail
     assert "nerdy" in intent_detail
+    # accessories=on forces the accessory slot.
     assert "accessory" in intent_detail
     assert any(item["category"] == "accessory" for item in data["recommended_items"])
     assert any(term in data["stylist_note"].lower() for term in ["tech", "nerdy", "suave"])
@@ -98,3 +100,54 @@ def test_default_men_brief_never_returns_women_items():
     data = response.json()
     genders = {item["gender"] for item in data["recommended_items"]}
     assert "women" not in genders
+
+
+def test_explicit_gender_override_wins_over_prompt_text():
+    # Prompt says "girlfriend" but the explicit men override must win.
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/style-me",
+            json={"prompt": "Style my girlfriend a chic dinner look.", "gender": "men"},
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    genders = {item["gender"] for item in data["recommended_items"]}
+    assert "women" not in genders
+
+
+def test_accessory_mode_off_and_on():
+    with TestClient(app) as client:
+        off = client.post(
+            "/api/v1/style-me",
+            json={"prompt": "Build a polished founder dinner outfit with accessories.", "accessories": "off"},
+        ).json()
+        on = client.post(
+            "/api/v1/style-me",
+            json={"prompt": "Build a polished founder dinner outfit.", "accessories": "on"},
+        ).json()
+
+    assert all(item["category"] != "accessory" for item in off["recommended_items"])
+    assert any(item["category"] == "accessory" for item in on["recommended_items"])
+
+
+def test_accessory_auto_skips_bags_unless_requested():
+    with TestClient(app) as client:
+        no_bag = client.post(
+            "/api/v1/style-me",
+            json={"prompt": "I need a complete gallery opening outfit with accessories."},
+        ).json()
+        with_bag = client.post(
+            "/api/v1/style-me",
+            json={"prompt": "Complete weekend outfit and include a weekender bag."},
+        ).json()
+
+    bag_words = ("bag", "tote", "backpack", "weekender", "satchel", "purse")
+    accessories = [i for i in no_bag["recommended_items"] if i["category"] == "accessory"]
+    assert accessories, "auto + 'with accessories' should add an accessory"
+    assert not any(any(w in a["name"].lower() for w in bag_words) for a in accessories)
+    # When the prompt explicitly asks for a bag, one should appear.
+    assert any(
+        i["category"] == "accessory" and any(w in i["name"].lower() for w in bag_words)
+        for i in with_bag["recommended_items"]
+    )

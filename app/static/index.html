@@ -65,6 +65,26 @@
             <label for="prompt">Client brief</label>
             <textarea id="prompt" name="prompt" rows="3" spellcheck="false">I have dark navy chinos, what t-shirt and shoes should I wear for a summer yacht party?</textarea>
           </div>
+
+          <div class="prefs">
+            <div class="seg-field">
+              <span class="seg-label">Styling for</span>
+              <div class="segmented" id="gender-seg" role="group" aria-label="Styling for">
+                <button type="button" data-gender="men">Men</button>
+                <button type="button" data-gender="women">Women</button>
+                <button type="button" class="active" data-gender="either">Either</button>
+              </div>
+            </div>
+            <div class="seg-field">
+              <span class="seg-label">Accessories</span>
+              <div class="segmented" id="accessory-seg" role="group" aria-label="Accessories">
+                <button type="button" class="active" data-accessories="auto">Auto</button>
+                <button type="button" data-accessories="on">On</button>
+                <button type="button" data-accessories="off">Off</button>
+              </div>
+            </div>
+          </div>
+
           <div class="brief-controls">
             <label class="price-field">
               <span>Ceiling</span>

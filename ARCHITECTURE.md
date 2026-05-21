@@ -91,7 +91,7 @@ This prompt shape is frugal:
 
 ### Semantic Cache
 
-`app/cache.py` stores prompt embeddings and full responses. Cache entries are namespaced by agent version, embedding model, **and the active LLM signature** (`provider:model`, or `local`). The LLM part matters: without it, a note generated in deterministic `local` mode could be served after Groq was enabled (and vice-versa). Namespacing by the response-shaping config guarantees a cached response always matches the pipeline that would generate it fresh. A similar prompt above the configured similarity threshold returns a cached response, preventing repeated LLM calls and repeated retrieval work for common styling requests.
+`app/cache.py` stores prompt embeddings and full responses. Cache entries are namespaced by agent version, embedding model, **and the active LLM signature** (`provider:model`, or `local`). The LLM part matters: without it, a note generated in deterministic `local` mode could be served after Groq was enabled (and vice-versa). Namespacing by the response-shaping config guarantees a cached response always matches the pipeline that would generate it fresh. Entries are also scoped by a per-request **variant key** (gender, accessory mode, budget bucket, currency), so the same prompt with different preferences never collides on a stale result. A similar prompt above the configured similarity threshold and with a matching variant returns a cached response, preventing repeated LLM calls and repeated retrieval work for common styling requests.
 
 ### API
 
@@ -107,9 +107,16 @@ Request:
 {
   "prompt": "I have dark navy chinos, what t-shirt and shoes should I wear for a summer yacht party?",
   "max_price": 500,
+  "gender": "either",
+  "accessories": "auto",
   "include_trace": true
 }
 ```
+
+`gender` (`men` | `women` | `either`, default `either`) and `accessories` (`auto` | `on` | `off`, default `auto`) are optional. They are metadata-filter knobs surfaced as controls in the UI:
+
+- `gender` — an explicit choice overrides prompt inference and filters retrieval to that gender plus unisex. `either` falls back to inferring from the prompt (defaulting to menswear). This is what stops women's pieces from appearing in a men's brief.
+- `accessories` — `auto` adds a finishing accessory only when the prompt implies one (and steers away from bags/totes unless the prompt asks for a bag); `on` always adds one; `off` never does. This addresses unwanted auto-recommended bags.
 
 Response:
 

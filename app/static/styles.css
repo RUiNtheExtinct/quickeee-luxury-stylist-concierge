@@ -305,6 +305,47 @@ a {
   outline: none;
 }
 
+/* Preferences row — styling-for + accessories segmented controls */
+.prefs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.4rem;
+  margin-top: 0.9rem;
+}
+.seg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.seg-label {
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 3px;
+  background: var(--card);
+}
+.segmented button {
+  border: 0;
+  background: transparent;
+  padding: 0.36rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+  transition: color 0.2s, background 0.2s;
+}
+.segmented button.active {
+  background: var(--ink);
+  color: var(--paper);
+}
+
 .brief-controls {
   display: flex;
   gap: 0.8rem;

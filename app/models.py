@@ -59,10 +59,34 @@ class CatalogItem(BaseModel):
         return " ".join(part for part in parts if part)
 
 
+class StylingFor(StrEnum):
+    """Who the look is being styled for. `either` lets the prompt decide."""
+
+    men = "men"
+    women = "women"
+    either = "either"
+
+
+class AccessoryMode(StrEnum):
+    """Whether to add a finishing accessory to the outfit.
+
+    auto  — add one only when the prompt implies it (and avoid bags/totes
+            unless the prompt mentions one).
+    on    — always add a finishing accessory.
+    off   — never add an accessory.
+    """
+
+    auto = "auto"
+    on = "on"
+    off = "off"
+
+
 class StyleRequest(BaseModel):
     prompt: str = Field(min_length=5, max_length=1200)
     max_price: float | None = Field(default=None, ge=1)
     currency: str = "USD"
+    gender: StylingFor = StylingFor.either
+    accessories: AccessoryMode = AccessoryMode.auto
     include_trace: bool = True
 
 
