@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     catalog_path: Path = Path("data/catalog.seed.json")
     cache_path: Path = Path("data/cache.json")
-    cache_namespace: str = "style-agent-v3"
+    cache_namespace: str = "style-agent-v4"
 
     embedding_provider: str = "fastembed"
     embedding_model: str = "BAAI/bge-small-en-v1.5"

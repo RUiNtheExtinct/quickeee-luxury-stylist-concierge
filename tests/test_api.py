@@ -62,3 +62,39 @@ def test_tech_nerdy_party_prompt_drives_style_signals_and_accessory():
     assert "accessory" in intent_detail
     assert any(item["category"] == "accessory" for item in data["recommended_items"])
     assert any(term in data["stylist_note"].lower() for term in ["tech", "nerdy", "suave"])
+
+
+def test_recommended_items_carry_gender_and_are_coherent_for_women_brief():
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/style-me",
+            json={
+                "prompt": "Style my wife a relaxed resort look for a beach club lunch with linen pieces.",
+                "include_trace": True,
+            },
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    intent_detail = next(step["detail"] for step in data["trace"] if step["step"] == "intent")
+    assert "gender=women" in intent_detail
+    # Every recommended piece must be women's or unisex — never men's.
+    genders = {item["gender"] for item in data["recommended_items"]}
+    assert genders, "expected at least one recommended item"
+    assert "men" not in genders
+
+
+def test_default_men_brief_never_returns_women_items():
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/style-me",
+            json={
+                "prompt": "I have dark navy chinos, what t-shirt and shoes should I wear for a summer yacht party?",
+                "include_trace": True,
+            },
+        )
+
+    assert response.status_code == 200
+    data = response.json()
+    genders = {item["gender"] for item in data["recommended_items"]}
+    assert "women" not in genders

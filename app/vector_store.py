@@ -9,7 +9,7 @@ from typing import Any, Protocol
 import httpx
 
 from app.embeddings import Embedder, cosine_similarity
-from app.models import CatalogItem, Category
+from app.models import CatalogItem, Category, Gender
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +32,7 @@ class VectorStore(Protocol):
         category: Category | None = None,
         max_price: float | None = None,
         colors: set[str] | None = None,
+        genders: set[Gender] | None = None,
         limit: int = 8,
     ) -> list[SearchResult]: ...
 
@@ -82,6 +83,7 @@ class LocalJsonVectorStore:
         category: Category | None = None,
         max_price: float | None = None,
         colors: set[str] | None = None,
+        genders: set[Gender] | None = None,
         limit: int = 8,
     ) -> list[SearchResult]:
         query_vector = self.embedder.embed(query)
@@ -93,6 +95,8 @@ class LocalJsonVectorStore:
             if max_price is not None and item.price > max_price:
                 continue
             if colors and item.color.lower() not in colors:
+                continue
+            if genders and item.gender not in genders:
                 continue
             score = cosine_similarity(query_vector, record["vector"])
             results.append(SearchResult(item=item, score=score))
@@ -185,6 +189,7 @@ class QdrantVectorStore:
         indexes = {
             "category": "keyword",
             "color": "keyword",
+            "gender": "keyword",
             "price": "float",
         }
         for field_name, field_schema in indexes.items():
@@ -214,6 +219,7 @@ class QdrantVectorStore:
         category: Category | None = None,
         max_price: float | None = None,
         colors: set[str] | None = None,
+        genders: set[Gender] | None = None,
         limit: int = 8,
     ) -> list[SearchResult]:
         must: list[dict[str, Any]] = []
@@ -223,6 +229,8 @@ class QdrantVectorStore:
             must.append({"key": "price", "range": {"lte": max_price}})
         if colors:
             must.append({"key": "color", "match": {"any": sorted(colors)}})
+        if genders:
+            must.append({"key": "gender", "match": {"any": sorted(g.value for g in genders)}})
 
         payload: dict[str, Any] = {
             "vector": self.embedder.embed(query),

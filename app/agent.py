@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import httpx
 
 from app.cache import SemanticCache
-from app.models import AgentTraceStep, CatalogItem, Category, RecommendedItem, StyleRequest, StyleResponse
+from app.models import AgentTraceStep, CatalogItem, Category, Gender, RecommendedItem, StyleRequest, StyleResponse
 from app.vector_store import SearchResult, VectorStore
 
 logger = logging.getLogger(__name__)
@@ -97,6 +97,11 @@ OWNED_BOTTOM_PATTERNS = [
     re.compile(r"\bwith my\b.*\b(chinos?|pants|trousers|jeans|shorts)\b", re.I),
 ]
 
+WOMEN_INTENT = re.compile(
+    r"\b(women|woman|women's|womens|her|she|girlfriend|wife|female|ladies|lady|dress|skirt|gown|heels)\b", re.I
+)
+MEN_INTENT = re.compile(r"\b(men|man|men's|mens|him|his|boyfriend|husband|male|guy|gentleman)\b", re.I)
+
 
 @dataclass(frozen=True)
 class Intent:
@@ -107,6 +112,7 @@ class Intent:
     owned_bottom: bool
     needs: list[Category]
     max_price: float | None
+    gender: Gender
 
 
 class StylistAgent:
@@ -142,7 +148,8 @@ class StylistAgent:
             AgentTraceStep(
                 step="intent",
                 detail=(
-                    f"colors={sorted(intent.colors) or 'open'}, occasions={sorted(intent.occasions) or 'general'}, "
+                    f"gender={intent.gender.value}, colors={sorted(intent.colors) or 'open'}, "
+                    f"occasions={sorted(intent.occasions) or 'general'}, "
                     f"style_signals={sorted(intent.style_signals) or 'none'}, "
                     f"query_terms={sorted(intent.query_terms) or 'none'}, "
                     f"owned_bottom={intent.owned_bottom}, needs={[need.value for need in intent.needs]}, "
@@ -151,6 +158,7 @@ class StylistAgent:
             )
         )
 
+        gender_filter = self._gender_filter(intent.gender)
         candidate_map: dict[Category, list[SearchResult]] = {}
         for category in intent.needs:
             query = self._query_for_category(request.prompt, category, intent)
@@ -158,17 +166,18 @@ class StylistAgent:
                 query,
                 category=category,
                 max_price=intent.max_price,
+                genders=gender_filter,
                 limit=10,
             )
             candidate_map[category] = self._rerank(candidates, intent)
             trace.append(
                 AgentTraceStep(
                     step=f"retrieve_{category.value}",
-                    detail=f"kept {len(candidate_map[category])} candidates from vector search for query={query!r}",
+                    detail=f"kept {len(candidate_map[category])} {intent.gender.value}/unisex candidates for query={query!r}",
                 )
             )
 
-        selected = self._select_items(candidate_map, intent)
+        selected = await self._select_outfit(request.prompt, candidate_map, intent, trace)
         trace.append(
             AgentTraceStep(
                 step="rank",
@@ -215,6 +224,7 @@ class StylistAgent:
             needs = [category for category in needs if category != Category.top]
             needs.insert(0, Category.top)
         max_price = request.max_price or self._extract_budget(prompt)
+        gender = self._extract_gender(request.prompt)
         return Intent(
             colors=colors,
             occasions=occasions,
@@ -223,7 +233,26 @@ class StylistAgent:
             owned_bottom=owned_bottom,
             needs=needs,
             max_price=max_price,
+            gender=gender,
         )
+
+    def _extract_gender(self, prompt: str) -> Gender:
+        has_women = bool(WOMEN_INTENT.search(prompt))
+        has_men = bool(MEN_INTENT.search(prompt))
+        if has_women and not has_men:
+            return Gender.women
+        if has_men and not has_women:
+            return Gender.men
+        # No explicit signal: default to the catalog's dominant menswear brief.
+        return Gender.men
+
+    def _gender_filter(self, gender: Gender) -> set[Gender]:
+        # Always allow unisex pieces alongside the requested gender.
+        if gender == Gender.women:
+            return {Gender.women, Gender.unisex}
+        if gender == Gender.men:
+            return {Gender.men, Gender.unisex}
+        return {Gender.men, Gender.women, Gender.unisex}
 
     def _extract_style_signals(self, prompt: str) -> set[str]:
         signals: set[str] = set()
@@ -319,6 +348,117 @@ class StylistAgent:
             palette.update({"white", "navy", "olive", "brown"})
         return palette
 
+    async def _select_outfit(
+        self,
+        prompt: str,
+        candidate_map: dict[Category, list[SearchResult]],
+        intent: Intent,
+        trace: list[AgentTraceStep],
+    ) -> list[CatalogItem]:
+        """Let the LLM choose one coherent item per category from the retrieved shortlist.
+
+        Retrieval and reranking stay deterministic (cheap, auditable). Only a compact
+        shortlist of facts is sent to the model, which applies fashion-pairing judgment
+        the heuristics cannot. Falls back to deterministic selection on any failure.
+        """
+
+        if self.llm_provider.lower() not in {"groq", "openai"} or not self.llm_api_key:
+            return self._select_items(candidate_map, intent)
+
+        shortlist: dict[str, list[dict]] = {}
+        id_lookup: dict[str, CatalogItem] = {}
+        for category, results in candidate_map.items():
+            options = []
+            for result in results[:6]:
+                item = result.item
+                id_lookup[item.id] = item
+                options.append(
+                    {
+                        "id": item.id,
+                        "name": item.name,
+                        "color": item.color,
+                        "material": item.material,
+                        "price": item.price,
+                        "gender": item.gender.value,
+                    }
+                )
+            if options:
+                shortlist[category.value] = options
+
+        if not shortlist:
+            return self._select_items(candidate_map, intent)
+
+        instruction = (
+            "You are a luxury menswear/womenswear stylist building ONE coherent outfit. "
+            "Choose exactly one item id from each provided category. Apply fashion rules: "
+            "harmonize colors, respect the requested palette and budget, keep formality consistent "
+            "with the occasion, and avoid clashing the owned pieces the client mentioned. "
+            'Return STRICT JSON: {"picks": {"<category>": "<id>"}, "rationale": "<one short sentence>"}.'
+        )
+        context = {
+            "prompt": prompt,
+            "intent": {
+                "gender": intent.gender.value,
+                "occasions": sorted(intent.occasions),
+                "colors": sorted(intent.colors),
+                "style_signals": sorted(intent.style_signals),
+                "max_price": intent.max_price,
+                "owned_bottom": intent.owned_bottom,
+            },
+            "candidates": shortlist,
+        }
+        payload = {
+            "model": self.llm_model,
+            "messages": [
+                {"role": "system", "content": instruction},
+                {"role": "user", "content": json.dumps(context)},
+            ],
+            "temperature": 0.2,
+            "max_tokens": 220,
+            "response_format": {"type": "json_object"},
+        }
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                response = await client.post(
+                    f"{self.llm_base_url}/chat/completions",
+                    headers={"Authorization": f"Bearer {self.llm_api_key}"},
+                    json=payload,
+                )
+                response.raise_for_status()
+            content = response.json()["choices"][0]["message"]["content"]
+            picks = json.loads(content).get("picks", {})
+            selected: list[CatalogItem] = []
+            chosen_ids: set[str] = set()
+            for category in intent.needs:
+                pick_id = picks.get(category.value)
+                if pick_id and pick_id in id_lookup and pick_id not in chosen_ids:
+                    selected.append(id_lookup[pick_id])
+                    chosen_ids.add(pick_id)
+            # Backfill any category the model skipped with the deterministic top pick.
+            if len(selected) < len(shortlist):
+                fallback = self._select_items(candidate_map, intent)
+                for item in fallback:
+                    if item.id not in chosen_ids and item.category in {c for c in intent.needs}:
+                        if not any(s.category == item.category for s in selected):
+                            selected.append(item)
+                            chosen_ids.add(item.id)
+            if selected:
+                trace.append(
+                    AgentTraceStep(
+                        step="llm_select",
+                        detail=f"{self.llm_provider}:{self.llm_model} chose {len(selected)} items from shortlist",
+                    )
+                )
+                return self._order_by_needs(selected, intent)
+        except Exception as exc:  # pragma: no cover - external provider fallback
+            logger.warning("LLM selection failed, using deterministic selection: %s", exc)
+            trace.append(AgentTraceStep(step="llm_select_fallback", detail="LLM selection failed; used deterministic selection"))
+        return self._select_items(candidate_map, intent)
+
+    def _order_by_needs(self, selected: list[CatalogItem], intent: Intent) -> list[CatalogItem]:
+        order = {category: index for index, category in enumerate(intent.needs)}
+        return sorted(selected, key=lambda item: order.get(item.category, 99))
+
     def _select_items(self, candidate_map: dict[Category, list[SearchResult]], intent: Intent) -> list[CatalogItem]:
         selected: list[CatalogItem] = []
         used_colors: set[str] = set()
@@ -356,6 +496,7 @@ class StylistAgent:
             image_url=item.image_url,
             product_url=item.product_url,
             color=item.color,
+            gender=item.gender,
             reason=reason,
         )
 

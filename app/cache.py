@@ -9,7 +9,7 @@ from app.models import StyleResponse
 
 
 class SemanticCache:
-    def __init__(self, path: Path, embedder: Embedder, threshold: float = 0.94, namespace: str = "style-agent-v3") -> None:
+    def __init__(self, path: Path, embedder: Embedder, threshold: float = 0.94, namespace: str = "style-agent-v4") -> None:
         self.path = path
         self.embedder = embedder
         self.threshold = threshold

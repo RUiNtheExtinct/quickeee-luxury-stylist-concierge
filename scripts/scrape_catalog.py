@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.models import CatalogItem, Category  # noqa: E402
+from app.models import CatalogItem, Category, Gender  # noqa: E402
 
 
 BRANDS = [
@@ -95,28 +95,132 @@ ACCESSORY_KEYWORDS = {
     "wallet",
 }
 
+# Ordered most-specific first so multi-word colors win before their base word.
 COLOR_WORDS = [
-    "black",
-    "blue",
-    "brown",
+    "off white",
+    "navy",
+    "indigo",
     "charcoal",
-    "cream",
+    "burgundy",
+    "maroon",
+    "marigold",
+    "mustard",
+    "camel",
+    "khaki",
+    "olive",
+    "forest",
+    "sage",
+    "greige",
+    "taupe",
+    "beige",
+    "stone",
+    "sand",
     "ecru",
+    "ivory",
+    "cream",
+    "bone",
+    "oatmeal",
+    "natural",
+    "tan",
+    "rust",
+    "terracotta",
+    "coral",
+    "blush",
+    "pink",
+    "red",
+    "orange",
+    "yellow",
+    "gold",
     "green",
+    "teal",
+    "blue",
+    "purple",
+    "lavender",
+    "brown",
+    "chocolate",
+    "coffee",
     "grey",
     "gray",
-    "indigo",
-    "ivory",
-    "khaki",
-    "navy",
-    "olive",
-    "sand",
-    "stone",
-    "tan",
+    "silver",
+    "black",
     "white",
 ]
 
-MATERIAL_WORDS = ["linen", "cotton", "nubuck", "suede", "leather", "canvas", "denim", "wool", "cashmere", "silk"]
+# Map noisy color names onto a compact, stylable palette the agent reasons over.
+COLOR_CANONICAL = {
+    "gray": "grey",
+    "silver": "grey",
+    "off white": "white",
+    "bone": "ivory",
+    "oatmeal": "cream",
+    "natural": "ecru",
+    "beige": "tan",
+    "camel": "tan",
+    "taupe": "tan",
+    "greige": "stone",
+    "coffee": "brown",
+    "chocolate": "brown",
+    "maroon": "burgundy",
+    "marigold": "yellow",
+    "mustard": "yellow",
+    "gold": "yellow",
+    "forest": "olive",
+    "sage": "olive",
+    "terracotta": "rust",
+    "coral": "rust",
+    "lavender": "purple",
+}
+
+MATERIAL_WORDS = [
+    "linen",
+    "organic cotton",
+    "cotton",
+    "nubuck",
+    "suede",
+    "leather",
+    "canvas",
+    "denim",
+    "merino",
+    "wool",
+    "cashmere",
+    "silk",
+    "nylon",
+    "fleece",
+    "corduroy",
+    "twill",
+    "chambray",
+]
+
+# Poetic brand color names (mostly Everlane) mapped onto the stylable palette.
+COLOR_ALIASES = {
+    "birch": "cream",
+    "beech": "tan",
+    "parchment": "cream",
+    "canvas": "ecru",
+    "bone": "ivory",
+    "aleutian": "blue",
+    "skywriting": "blue",
+    "heather rose": "pink",
+    "passion fruit": "pink",
+    "pale peach": "blush",
+    "velvet morning": "navy",
+    "graystone": "grey",
+    "tungsten": "grey",
+    "kalamata": "olive",
+    "mayfly": "olive",
+    "heathered oat": "cream",
+    "heathered oats": "cream",
+    "oat": "cream",
+    "oatmeal": "cream",
+    "espresso": "brown",
+    "cabernet": "burgundy",
+    "vintage indigo": "indigo",
+    "avorio": "ivory",
+    "wind": "grey",
+}
+
+WOMEN_SIGNALS = ("women", "woman", "womens", "women's", "ladies", "female")
+MEN_SIGNALS = ("men", "mens", "men's", "male", "guys")
 
 
 async def scrape_shopify_catalog(delay_min: float, delay_max: float, timeout: float) -> list[CatalogItem]:
@@ -144,8 +248,10 @@ async def scrape_shopify_catalog(delay_min: float, delay_max: float, timeout: fl
 def normalize_product(brand: dict[str, str], product: dict[str, Any]) -> CatalogItem | None:
     title = clean(product.get("title", ""))
     product_type = clean(product.get("product_type", ""))
-    tags = [clean(tag).lower() for tag in product.get("tags", []) if clean(tag)]
-    haystack = " ".join([title, product_type, *tags]).lower()
+    handle = product.get("handle", "")
+    raw_tags = [clean(tag) for tag in product.get("tags", []) if clean(tag)]
+    tags = [tag.lower() for tag in raw_tags]
+    haystack = " ".join([title, product_type, handle, *tags]).lower()
     category = classify(haystack)
     if category is None:
         return None
@@ -161,9 +267,25 @@ def normalize_product(brand: dict[str, str], product: dict[str, Any]) -> Catalog
         return None
 
     description = html_to_text(product.get("body_html", ""))
-    handle = product.get("handle", "")
     product_url = f"{brand['source'].rstrip('/')}/products/{handle}" if handle else brand["source"]
     item_id = stable_id(f"{brand['brand']}:{product.get('id')}:{title}")
+
+    # Prefer explicit structured signals (option/variant color, tagged color/material)
+    # over scanning free text, which is what produced wrong labels before.
+    option_values = collect_option_values(product, variants)
+    color = (
+        color_from_tags(raw_tags)
+        or extract_color(" ".join(option_values))
+        or extract_color(f"{title} {handle}")
+        or extract_color(description.lower())
+        or "unknown"
+    )
+    material = (
+        material_from_tags(raw_tags)
+        or extract_material(" ".join([title.lower(), product_type.lower(), description.lower()]))
+        or "unknown"
+    )
+    gender = detect_gender(product_type=product_type, handle=handle, tags=tags, source=brand["source"])
 
     return CatalogItem(
         id=item_id,
@@ -175,11 +297,86 @@ def normalize_product(brand: dict[str, str], product: dict[str, Any]) -> Catalog
         image_url=image_url,
         product_url=product_url,
         category=category,
+        gender=gender,
         description=description or f"{title} from {brand['brand']}.",
-        color=extract_color(haystack),
-        material=extract_material(" ".join([haystack, description.lower()])),
+        color=color,
+        material=material,
         tags=tags[:20],
     )
+
+
+def collect_option_values(product: dict[str, Any], variants: list[dict[str, Any]]) -> list[str]:
+    """Pull the human-readable color option label (e.g. "Marigold") from Shopify options."""
+
+    values: list[str] = []
+    color_positions = []
+    for option in product.get("options") or []:
+        name = str(option.get("name", "")).strip().lower()
+        if name in {"color", "colour"}:
+            color_positions.append(option.get("position"))
+            values.extend(str(value) for value in option.get("values", []))
+    if not values and variants:
+        # Some feeds only name the variant; the color is usually option1.
+        for variant in variants[:4]:
+            for key in ("option1", "option2", "option3"):
+                value = variant.get(key)
+                if value and not _looks_like_size(str(value)):
+                    values.append(str(value))
+    return values
+
+
+def _looks_like_size(value: str) -> bool:
+    text = value.strip().lower()
+    return bool(re.fullmatch(r"(xxs|xs|s|m|l|xl|xxl|\d{1,2}(\.\d)?(\s*-\s*\d{2})?)", text))
+
+
+def color_from_tags(raw_tags: list[str]) -> str:
+    """Read Shopify's structured color tags: 'Primary Color: Green', 'Color:Green', 'color-greige'."""
+
+    for tag in raw_tags:
+        lowered = tag.lower()
+        match = re.match(r"(?:primary\s*)?colou?r\s*[:\-]\s*(.+)", lowered)
+        if not match:
+            continue
+        color = extract_color(match.group(1))
+        if color:
+            return color
+    return ""
+
+
+def material_from_tags(raw_tags: list[str]) -> str:
+    for tag in raw_tags:
+        lowered = tag.lower()
+        match = re.match(r"(?:primary\s*)?material\s*[:\-]\s*(.+)", lowered)
+        if not match:
+            continue
+        material = extract_material(match.group(1))
+        if material:
+            return material
+    return ""
+
+
+def detect_gender(*, product_type: str, handle: str, tags: list[str], source: str) -> Gender:
+    """Derive gender from the most reliable structured signals, not the display name."""
+
+    type_l = product_type.lower()
+    handle_l = handle.lower()
+    if re.search(r"\bwomen|women's|womens|ladies\b", type_l) or handle_l.startswith(("womens-", "women-", "womens_")):
+        return Gender.women
+    if re.search(r"\bmen|men's|mens\b", type_l) or handle_l.startswith(("mens-", "men-", "mens_")):
+        return Gender.men
+    tag_text = " ".join(tags)
+    has_women = any(re.search(rf"(^|[\s:_-]){sig}([\s:_-]|$)", tag_text) for sig in WOMEN_SIGNALS)
+    has_men = any(re.search(rf"(^|[\s:_-]){sig}([\s:_-]|$)", tag_text) for sig in MEN_SIGNALS)
+    if has_women and not has_men:
+        return Gender.women
+    if has_men and not has_women:
+        return Gender.men
+    if re.search(r"\bwomen|womens|ladies\b", handle_l):
+        return Gender.women
+    if re.search(r"\bmen|mens\b", handle_l):
+        return Gender.men
+    return Gender.unisex
 
 
 async def scrape_with_playwright(collection_urls: list[str]) -> list[dict[str, str]]:
@@ -264,17 +461,22 @@ def image_rank(image: dict[str, Any]) -> tuple[int, int]:
 
 
 def extract_color(text: str) -> str:
+    text = text.lower()
+    for alias, canonical in COLOR_ALIASES.items():
+        if re.search(rf"\b{re.escape(alias)}\b", text):
+            return canonical
     for color in COLOR_WORDS:
         if re.search(rf"\b{re.escape(color)}\b", text):
-            return "grey" if color == "gray" else color
-    return "unknown"
+            return COLOR_CANONICAL.get(color, color)
+    return ""
 
 
 def extract_material(text: str) -> str:
+    text = text.lower()
     for material in MATERIAL_WORDS:
         if re.search(rf"\b{re.escape(material)}\b", text):
-            return material
-    return "unknown"
+            return "cotton" if material == "organic cotton" else material
+    return ""
 
 
 def parse_price(value: Any) -> float:
@@ -305,7 +507,7 @@ def dedupe(items: list[CatalogItem]) -> list[CatalogItem]:
     seen: set[str] = set()
     deduped: list[CatalogItem] = []
     for item in items:
-        key = f"{item.brand}:{item.name}:{item.color}:{item.category}"
+        key = f"{item.brand}:{item.name}:{item.color}:{item.category}:{item.gender}"
         if key in seen:
             continue
         seen.add(key)

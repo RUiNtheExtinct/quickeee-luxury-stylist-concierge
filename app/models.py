@@ -13,6 +13,12 @@ class Category(StrEnum):
     accessory = "accessory"
 
 
+class Gender(StrEnum):
+    men = "men"
+    women = "women"
+    unisex = "unisex"
+
+
 class CatalogItem(BaseModel):
     id: str
     brand: str
@@ -23,6 +29,7 @@ class CatalogItem(BaseModel):
     image_url: str
     product_url: str
     category: Category
+    gender: Gender = Gender.unisex
     description: str
     color: str = "unknown"
     material: str = "unknown"
@@ -43,6 +50,7 @@ class CatalogItem(BaseModel):
             self.brand,
             self.name,
             self.category.value,
+            f"{self.gender.value}'s" if self.gender != Gender.unisex else "unisex",
             self.color,
             self.material,
             self.description,
@@ -68,6 +76,7 @@ class RecommendedItem(BaseModel):
     image_url: str
     product_url: str
     color: str
+    gender: Gender = Gender.unisex
     reason: str
 
 

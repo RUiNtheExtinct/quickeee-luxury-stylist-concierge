@@ -18,7 +18,15 @@ class AppContainer:
         self.catalog = CatalogRepository(settings.catalog_path)
         self.embedder = self._build_embedder(settings)
         self.vector_store: VectorStore = self._build_vector_store(settings)
-        self.cache = SemanticCache(settings.cache_path, self.embedder, namespace=settings.cache_namespace)
+        # Namespace the cache by the response-shaping config so a note generated in
+        # one LLM mode is never served after the provider/model changes.
+        llm_signature = (
+            f"{settings.llm_provider}:{settings.llm_model}"
+            if settings.llm_provider.lower() in {"groq", "openai"} and settings.llm_api_key
+            else "local"
+        )
+        cache_namespace = f"{settings.cache_namespace}:{llm_signature}"
+        self.cache = SemanticCache(settings.cache_path, self.embedder, namespace=cache_namespace)
         self.agent = StylistAgent(
             vector_store=self.vector_store,
             cache=self.cache,

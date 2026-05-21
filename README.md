@@ -4,21 +4,21 @@ An end-to-end Gen AI and data engineering assignment for a premium fashion conci
 
 ## What It Does
 
-![Quickeee atelier empty state](docs/atelier-empty-screenshot.png)
+![Quickeee atelier empty state](docs/redesign-empty.png)
 
-![Quickeee concierge UI](docs/demo-screenshot.png)
+![Quickeee composed look](docs/redesign-stage.png)
 
-![Quickeee engineer mode](docs/engineer-mode-screenshot.png)
+![Quickeee engineer mode](docs/redesign-engineer-stage.png)
 
 - Live demo: `https://quickeee-luxury-stylist.onrender.com`
 - Swagger/API docs: `https://quickeee-luxury-stylist.onrender.com/docs`
 - Public repository: `https://github.com/RUiNtheExtinct/quickeee-luxury-stylist-concierge`
 
-- Scrapes public apparel catalogs from two Shopify-backed fashion brands.
-- Normalizes products into clean JSON: name, price, image URL, category, description, color, material, source.
-- Indexes 410 curated products with FastEmbed/BGE vectors into Qdrant locally through Docker Compose, Qdrant Cloud, or a zero-service local vector fallback for free hosting.
-- Runs an agentic styling workflow with intent extraction, style-signal enriched vector retrieval, reranking, semantic cache, rate limiting, and structured JSON output.
-- Serves a luxury concierge UI at `/` with default Atelier mode, reviewer-facing Engineer mode, lazy-loaded inventory preview, and a custom SVG/PNG brand mark.
+- Scrapes public apparel catalogs from four Shopify-backed fashion brands (Everlane, Taylor Stitch, Koio, Nisolo).
+- Normalizes products into clean JSON: name, price, image URL, category, gender, description, color, material, source — using Shopify's structured color/material/gender signals instead of brittle free-text scanning.
+- Indexes 420 curated products with FastEmbed/BGE vectors into Qdrant (payload indexes on category, color, gender, price) locally through Docker Compose, Qdrant Cloud, or a zero-service local vector fallback for free hosting.
+- Runs a genuinely agentic styling workflow: gender/budget pre-filtered retrieval, fashion reranking, **LLM-driven outfit selection** (the model picks one coherent piece per category as strict JSON, honoring palette/gender/budget), semantic cache, rate limiting, and structured JSON output — with a deterministic fallback when no key is set.
+- Serves an editorial-atelier concierge UI at `/` with default Atelier mode, reviewer-facing Engineer mode (trace, telemetry, raw JSON), lazy-loaded inventory preview, and a custom SVG/PNG brand mark.
 
 ## Fast Start
 
@@ -90,8 +90,10 @@ The scraper targets:
 
 - Everlane
 - Taylor Stitch
+- Koio
+- Nisolo
 
-It uses randomized user agents, polite jitter, normalized Shopify product feeds, HTML cleanup, category classification, color/material extraction, and an optional Playwright DOM fallback for JavaScript-heavy pages.
+It uses randomized user agents, polite jitter, normalized Shopify product feeds, HTML cleanup, category classification, structured gender/color/material extraction (with palette canonicalization), and an optional Playwright DOM fallback for JavaScript-heavy pages.
 
 ## Free Deployment Strategy
 
@@ -134,7 +136,7 @@ app/
   vector_store.py   # Qdrant and local JSON vector implementations
   static/           # concierge UI, logo, favicons, vendored icons
 data/
-  catalog.seed.json # checked-in demo catalog, 410 tops/bottoms/shoes/accessories
+  catalog.seed.json # checked-in demo catalog, 420 tops/bottoms/shoes/accessories with gender
   catalog.scraped.sample.json # scraper output sample from public apparel sites
 scripts/
   generate_seed_catalog.py

@@ -3,232 +3,203 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Quickeee Luxury Stylist Concierge</title>
+    <title>Quickeee — Luxury Stylist Concierge</title>
+    <meta
+      name="description"
+      content="An agentic RAG fashion concierge. Describe the room; the atelier retrieves, reasons, and composes a styled look."
+    />
     <link rel="icon" href="/static/quickeee-mark.svg" type="image/svg+xml" />
     <link rel="icon" href="/static/icons/favicon-32.png" sizes="32x32" type="image/png" />
     <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/static/site.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..500&family=Archivo:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/static/styles.css" />
     <script defer src="/static/vendor/lucide.js"></script>
   </head>
   <body class="atelier-mode">
+    <div class="grain" aria-hidden="true"></div>
+
+    <header class="masthead">
+      <a class="wordmark" href="/" aria-label="Quickeee home">
+        <img src="/static/quickeee-mark.svg" alt="" width="34" height="34" />
+        <span class="wordmark-text">
+          <em>Quickeee</em>
+          <small>Atelier №1 · Stylist Concierge</small>
+        </span>
+      </a>
+
+      <nav class="masthead-nav" aria-label="Experience mode">
+        <div class="mode-switch" role="group" aria-label="View mode">
+          <button class="active" type="button" data-mode="atelier">Atelier</button>
+          <button type="button" data-mode="engineer">Engineer</button>
+        </div>
+        <a class="ghost-link" href="/docs" target="_blank" rel="noreferrer">
+          <i data-lucide="braces"></i><span>API</span>
+        </a>
+        <button id="help-button" class="ghost-link" type="button" aria-label="Open concierge guide">
+          <i data-lucide="circle-help"></i><span>Guide</span>
+        </button>
+      </nav>
+    </header>
+
     <main class="shell">
-      <section class="studio" aria-label="Stylist console">
-        <div class="topbar">
-          <div class="brandmark">
-            <img class="brand-logo" src="/static/quickeee-mark.svg" alt="Quickeee" width="68" height="68" />
-            <div>
-              <p>Quickeee</p>
-              <strong>Luxury Stylist Concierge</strong>
-            </div>
-          </div>
-          <button id="help-button" class="icon-button" type="button" aria-label="Open concierge guide">
-            <i data-lucide="circle-help"></i>
-          </button>
-        </div>
+      <!-- ░░ BRIEF ░░ -->
+      <section class="brief" aria-label="Stylist console">
+        <p class="kicker"><span class="rule"></span> The brief</p>
+        <h1 class="display">
+          Describe the room.<br />
+          We compose the <em>look</em>.
+        </h1>
 
-        <div class="mode-switch" role="group" aria-label="Experience mode">
-          <button class="active" type="button" data-mode="atelier">
-            <i data-lucide="sparkles"></i>
-            <span>Atelier</span>
-          </button>
-          <button type="button" data-mode="engineer">
-            <i data-lucide="terminal-square"></i>
-            <span>Engineer</span>
-          </button>
-        </div>
-
-        <form id="stylist-form" class="prompt-panel">
-          <div class="field-head">
+        <form id="stylist-form" class="brief-form">
+          <div class="field">
             <label for="prompt">Client brief</label>
-            <small>Occasion, owned pieces, weather, budget, and vibe all help.</small>
+            <textarea id="prompt" name="prompt" rows="4" spellcheck="false">I have dark navy chinos, what t-shirt and shoes should I wear for a summer yacht party?</textarea>
           </div>
-          <textarea id="prompt" name="prompt" rows="7">I have dark navy chinos, what t-shirt and shoes should I wear for a summer yacht party?</textarea>
-          <div class="controls">
+          <div class="brief-controls">
             <label class="price-field">
               <span>Ceiling</span>
-              <input id="max-price" type="number" min="1" placeholder="No cap" />
+              <div class="price-input">
+                <i>$</i>
+                <input id="max-price" type="number" min="1" inputmode="numeric" placeholder="none" />
+              </div>
             </label>
-            <button type="submit">
-              <i data-lucide="wand-sparkles"></i>
-              <span>Style me</span>
+            <button class="compose" type="submit">
+              <span class="compose-label">Compose the look</span>
+              <span class="compose-spinner" aria-hidden="true"></span>
+              <i data-lucide="arrow-right"></i>
             </button>
           </div>
         </form>
 
-        <section class="template-panel" aria-label="Prompt templates">
-          <div class="rail-heading compact">
-            <p>Brief templates</p>
-            <span>Tap one, then tune it</span>
-          </div>
-          <div class="quick-prompts">
+        <div class="templates" aria-label="Brief templates">
+          <span class="templates-label">Try a brief</span>
+          <div class="chips">
             <button data-prompt="Build a polished outfit for an outdoor founder dinner in warm weather under $450.">Founder dinner</button>
             <button data-prompt="I own black jeans. Give me a sharp top and shoes for a gallery opening.">Gallery opening</button>
             <button data-prompt="Style a relaxed resort look for a beach club lunch with linen pieces.">Resort lunch</button>
             <button data-prompt="I have olive trousers. Style a quiet luxury airport look for a long-haul flight.">Airport lounge</button>
             <button data-prompt="Create a refined date-night outfit for a rooftop cocktail bar with navy and cream tones.">Rooftop date</button>
-            <button data-prompt="I need a breathable smart-casual look for a humid client lunch under $500.">Client lunch</button>
+            <button data-prompt="Style my wife a relaxed resort look for a beach club lunch with linen pieces.">For her · resort</button>
             <button data-prompt="Style a minimal weekend look around white sneakers and light chinos.">Weekend edit</button>
             <button data-prompt="Build a polished beach wedding guest outfit with no black pieces.">Beach wedding</button>
-            <button data-prompt="I own tan chinos. Recommend a top and shoes for a private members club dinner.">Club dinner</button>
-            <button data-prompt="Create a gallery-to-dinner outfit that feels creative but still expensive.">Creative evening</button>
           </div>
-        </section>
-
-        <div class="status-strip">
-          <div><span id="catalog-count">...</span><small>catalog items</small></div>
-          <div><span id="vector-backend">...</span><small>vector memory</small></div>
-          <div><span id="cache-state">cold</span><small>cache</small></div>
         </div>
+
+        <dl class="ledger" aria-label="System status">
+          <div><dt id="catalog-count">···</dt><dd>indexed pieces</dd></div>
+          <div><dt id="vector-backend">···</dt><dd>vector memory</dd></div>
+          <div><dt id="cache-state">cold</dt><dd>semantic cache</dd></div>
+        </dl>
       </section>
 
-      <section class="result-stage" aria-label="Recommendation">
-        <div class="result-header">
-          <div>
-            <p>Atelier selection</p>
-            <h1 id="result-title">Compose the brief</h1>
-          </div>
-          <div class="result-actions">
-            <a href="/docs" target="_blank" rel="noreferrer">
-              <i data-lucide="braces"></i>
-              Swagger
-            </a>
-          </div>
+      <!-- ░░ THE LOOK ░░ -->
+      <section class="stage" aria-label="Recommendation">
+        <div class="stage-head">
+          <p class="kicker"><span class="rule"></span> <span id="result-eyebrow">The selection</span></p>
+          <h2 class="stage-title" id="result-title">Awaiting the brief</h2>
+          <strong class="stage-total" id="total-price">$0</strong>
         </div>
 
-        <div id="items" class="items empty">
+        <div id="items" class="looks empty">
           <div class="empty-state">
+            <div class="empty-frame" aria-hidden="true">
+              <div class="empty-swatches">
+                <span class="sw navy"></span><span class="sw ivory"></span><span class="sw tan"></span>
+              </div>
+              <span class="empty-num">01 — 03</span>
+            </div>
             <div class="empty-copy">
-              <span class="eyebrow">Before the first look</span>
-              <h2>Tell the concierge what the room should feel like.</h2>
+              <p class="eyebrow">Before the first look</p>
+              <h3>Tell the concierge what the room should feel like.</h3>
               <p>
-                Mention the pieces already in your wardrobe, the occasion, climate, and budget. The agent will retrieve only available inventory, rank it, and return a styled JSON payload.
+                Name the pieces you own, the occasion, the weather, a budget, who it's for. The agent retrieves
+                only available inventory, reasons over fashion rules, and returns a styled JSON payload.
               </p>
-              <div class="empty-steps" aria-label="Workflow preview">
-                <span><i data-lucide="scan-search"></i> Retrieve</span>
-                <span><i data-lucide="sliders-horizontal"></i> Rerank</span>
-                <span><i data-lucide="badge-check"></i> Style</span>
-              </div>
-            </div>
-            <div class="look-preview" aria-hidden="true">
-              <div class="swatch navy"></div>
-              <div class="swatch ivory"></div>
-              <div class="swatch tan"></div>
-              <div class="preview-card main">
-                <span>Summer yacht party</span>
-                <strong>Navy chino base</strong>
-              </div>
-              <div class="preview-card accent">
-                <i data-lucide="shirt"></i>
-                <span>White tee</span>
-              </div>
-              <div class="preview-card shoe">
-                <i data-lucide="footprints"></i>
-                <span>Nubuck loafer</span>
-              </div>
+              <ol class="flow">
+                <li><span>01</span> Retrieve</li>
+                <li><span>02</span> Reason</li>
+                <li><span>03</span> Compose</li>
+              </ol>
             </div>
           </div>
         </div>
 
-        <div class="note-band">
-          <p id="stylist-note">The concierge will retrieve available inventory, rank the pieces, and return a structured JSON recommendation.</p>
-          <strong id="total-price">$0</strong>
-        </div>
+        <figure class="note" hidden id="note-wrap">
+          <blockquote id="stylist-note"></blockquote>
+          <figcaption>— The Quickeee stylist</figcaption>
+        </figure>
 
-        <section class="debug-grid" aria-label="Engineer telemetry">
-          <div class="debug-card">
-            <i data-lucide="database-zap"></i>
-            <div>
-              <strong id="debug-backend">local_json</strong>
-              <span>Vector backend</span>
-            </div>
-          </div>
-          <div class="debug-card">
-            <i data-lucide="brain-circuit"></i>
-            <div>
-              <strong id="debug-embedding">fastembed</strong>
-              <span>Embedding model</span>
-            </div>
-          </div>
-          <div class="debug-card">
-            <i data-lucide="bot"></i>
-            <div>
-              <strong id="debug-llm">local</strong>
-              <span>Stylist LLM</span>
-            </div>
-          </div>
-          <div class="debug-card">
-            <i data-lucide="wallet-cards"></i>
-            <div>
-              <strong id="debug-cache">cold</strong>
-              <span>Semantic cache</span>
-            </div>
-          </div>
-          <div class="debug-card">
-            <i data-lucide="shield-check"></i>
-            <div>
-              <strong>30/min</strong>
-              <span>Demo rate limit</span>
-            </div>
-          </div>
+        <!-- Engineer telemetry -->
+        <section class="telemetry" aria-label="Engineer telemetry">
+          <div class="tele-card"><span>Vector backend</span><strong id="debug-backend">local_json</strong></div>
+          <div class="tele-card"><span>Embedding model</span><strong id="debug-embedding">fastembed</strong></div>
+          <div class="tele-card"><span>Stylist LLM</span><strong id="debug-llm">local</strong></div>
+          <div class="tele-card"><span>Semantic cache</span><strong id="debug-cache">cold</strong></div>
+          <div class="tele-card"><span>Demo rate limit</span><strong>30 / min</strong></div>
         </section>
 
-        <details class="trace-panel" open>
+        <details class="panel trace-panel" open>
           <summary><i data-lucide="route"></i> Agent trace</summary>
-          <ol id="trace"></ol>
+          <ol id="trace" class="trace"></ol>
         </details>
 
-        <details class="debug-json">
+        <details class="panel json-panel">
           <summary><i data-lucide="file-json"></i> Response JSON</summary>
           <pre id="response-json">{}</pre>
         </details>
       </section>
 
-      <section class="inventory-rail" aria-label="Catalog preview">
-        <div class="rail-heading">
-          <div>
-            <p>Indexed inventory</p>
-            <span id="rail-count">Showing 0 items</span>
-          </div>
-          <span>Lazy-loaded seed catalog</span>
+      <!-- ░░ INVENTORY ░░ -->
+      <section class="inventory" aria-label="Catalog preview">
+        <div class="inventory-head">
+          <p class="kicker"><span class="rule"></span> Indexed inventory</p>
+          <span id="rail-count">Showing 0 pieces</span>
         </div>
         <div id="rail" class="rail"></div>
-        <div class="rail-actions">
-          <button id="load-more" type="button">
-            <i data-lucide="rows-3"></i>
-            <span>Load more inventory</span>
-          </button>
-        </div>
+        <button id="load-more" type="button" class="load-more">
+          <span>Load more inventory</span><i data-lucide="plus"></i>
+        </button>
       </section>
     </main>
 
+    <footer class="colophon">
+      <span>Quickeee Luxury Stylist Concierge</span>
+      <span>Agentic RAG · FastAPI · Qdrant · BGE · Groq</span>
+    </footer>
+
     <div id="help-modal" class="modal-backdrop" hidden>
       <section class="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
-        <button id="help-close" class="icon-button close" type="button" aria-label="Close concierge guide">
+        <button id="help-close" class="modal-close" type="button" aria-label="Close concierge guide">
           <i data-lucide="x"></i>
         </button>
-        <p class="eyebrow">Concierge guide</p>
-        <h2 id="help-title">How to get the best recommendation</h2>
+        <p class="kicker"><span class="rule"></span> Concierge guide</p>
+        <h2 id="help-title">How to get the best look</h2>
         <div class="help-grid">
           <article>
-            <i data-lucide="shirt"></i>
+            <span class="help-num">01</span>
             <h3>Name owned pieces</h3>
-            <p>“I have dark navy chinos” tells the agent to skip bottoms and complete the outfit.</p>
+            <p>“I have dark navy chinos” tells the agent to skip bottoms and complete the outfit around them.</p>
           </article>
           <article>
-            <i data-lucide="calendar-heart"></i>
+            <span class="help-num">02</span>
             <h3>Set the room</h3>
-            <p>Occasion, weather, dress code, and mood sharpen retrieval and reranking.</p>
+            <p>Occasion, weather, dress code, and mood sharpen retrieval and the LLM's pairing decision.</p>
           </article>
           <article>
-            <i data-lucide="receipt-text"></i>
+            <span class="help-num">03</span>
             <h3>Add constraints</h3>
-            <p>Budget, colors, and “no black” type rules are handled before the final recommendation.</p>
+            <p>Budget, colors, gender (“for my wife”), and “no black” rules are honored before the final look.</p>
           </article>
           <article>
-            <i data-lucide="terminal-square"></i>
+            <span class="help-num">04</span>
             <h3>Use Engineer mode</h3>
-            <p>Reveal trace, cache state, vector backend, and response JSON for the assignment review.</p>
+            <p>Reveal the agent trace, cache state, vector backend, and the raw JSON payload for review.</p>
           </article>
         </div>
       </section>

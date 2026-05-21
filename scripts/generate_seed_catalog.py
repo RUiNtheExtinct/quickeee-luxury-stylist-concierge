@@ -116,6 +116,7 @@ def build_items() -> list[dict]:
                     "image_url": image_url(category, color, idx + 1),
                     "product_url": f"{SOURCES[brand]}/products/{item_id}",
                     "category": category,
+                    "gender": "men",
                     "description": description,
                     "color": color,
                     "material": material,

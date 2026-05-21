@@ -4,8 +4,10 @@ const maxPriceInput = document.querySelector("#max-price");
 const itemsEl = document.querySelector("#items");
 const traceEl = document.querySelector("#trace");
 const noteEl = document.querySelector("#stylist-note");
+const noteWrap = document.querySelector("#note-wrap");
 const totalEl = document.querySelector("#total-price");
 const titleEl = document.querySelector("#result-title");
+const eyebrowEl = document.querySelector("#result-eyebrow");
 const cacheEl = document.querySelector("#cache-state");
 const railEl = document.querySelector("#rail");
 const railCountEl = document.querySelector("#rail-count");
@@ -79,20 +81,30 @@ async function loadRail() {
 function renderItems(items) {
   itemsEl.classList.remove("empty");
   itemsEl.innerHTML = items
-    .map(
-      (item) => `
-        <article class="item">
+    .map((item, index) => {
+      const gender = item.gender && item.gender !== "unisex" ? `${escapeHtml(item.gender)}'s` : "unisex";
+      const colorTag =
+        item.color && item.color !== "unknown" ? `<span class="tag">${escapeHtml(item.color)}</span>` : "";
+      const number = String(index + 1).padStart(2, "0");
+      return `
+        <article class="item" data-index="No ${number}" style="animation-delay:${index * 80}ms">
           <div class="item-media">
             <img src="${escapeHtml(item.image_url)}" alt="${escapeHtml(item.name)}" loading="eager" decoding="async">
           </div>
           <div class="item-info">
-            <small>${escapeHtml(item.brand)} / ${escapeHtml(item.category)} / ${money.format(item.price)}</small>
-            <h2>${escapeHtml(item.name)}</h2>
+            <div class="item-meta">
+              <span class="tag">${escapeHtml(item.category)}</span>
+              <span class="tag">${gender}</span>
+              ${colorTag}
+              <span class="tag price">${money.format(item.price)}</span>
+            </div>
+            <h3>${escapeHtml(item.name)}</h3>
             <p>${escapeHtml(item.reason)}</p>
+            <div class="item-meta"><span>${escapeHtml(item.brand)}</span></div>
           </div>
         </article>
-      `,
-    )
+      `;
+    })
     .join("");
 }
 
@@ -102,7 +114,7 @@ function renderTrace(trace) {
     return;
   }
   traceEl.innerHTML = trace
-    .map((step) => `<li><strong>${escapeHtml(step.step)}</strong>: ${escapeHtml(step.detail)}</li>`)
+    .map((step) => `<li><strong>${escapeHtml(step.step)}</strong> — ${escapeHtml(step.detail)}</li>`)
     .join("");
 }
 
@@ -125,8 +137,9 @@ async function submitPrompt(event) {
   if (!prompt) return;
 
   form.classList.add("loading");
-  titleEl.textContent = "Composing";
-  traceEl.innerHTML = "<li>Retrieving inventory...</li>";
+  eyebrowEl.textContent = "Composing";
+  titleEl.textContent = "Retrieving inventory";
+  traceEl.innerHTML = "<li>Retrieving inventory…</li>";
   responseJsonEl.textContent = "{}";
 
   try {
@@ -146,14 +159,19 @@ async function submitPrompt(event) {
     renderTrace(data.trace);
     responseJsonEl.textContent = JSON.stringify(data, null, 2);
     noteEl.textContent = data.stylist_note;
+    noteWrap.hidden = !data.stylist_note;
     totalEl.textContent = money.format(data.total_price);
-    titleEl.textContent = data.cache_hit ? "Pulled from cache" : "Look approved";
+    eyebrowEl.textContent = data.cache_hit ? "From cache" : "The selection";
+    titleEl.textContent = data.cache_hit ? "Recalled look" : "Look composed";
     cacheEl.textContent = data.cache_hit ? "hit" : "stored";
     debugCache.textContent = data.cache_hit ? "hit" : "stored";
-    document.scrollingElement.scrollTop = 0;
+    document.querySelector(".stage").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
-    titleEl.textContent = "Needs attention";
-    traceEl.innerHTML = `<li>${error.message}</li>`;
+    eyebrowEl.textContent = "Needs attention";
+    titleEl.textContent = "The concierge paused";
+    noteWrap.hidden = false;
+    noteEl.textContent = error.message;
+    traceEl.innerHTML = `<li>${escapeHtml(error.message)}</li>`;
     responseJsonEl.textContent = JSON.stringify({ error: error.message }, null, 2);
   } finally {
     form.classList.remove("loading");
@@ -172,7 +190,7 @@ function readableError(errorText) {
 
 function updateRailCount() {
   const visible = Math.min(catalogOffset, catalogTotal || catalogOffset);
-  railCountEl.textContent = catalogTotal ? `Showing ${visible} of ${catalogTotal}` : `Showing ${visible} items`;
+  railCountEl.textContent = catalogTotal ? `Showing ${visible} of ${catalogTotal}` : `Showing ${visible} pieces`;
   loadMoreButton.disabled = catalogLoading || catalogComplete;
   loadMoreButton.hidden = catalogComplete;
   loadMoreButton.querySelector("span").textContent = catalogComplete ? "Inventory loaded" : "Load more inventory";
@@ -218,6 +236,13 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !helpModal.hidden) {
     helpModal.hidden = true;
     helpButton.focus();
+  }
+});
+
+// Cmd/Ctrl+Enter submits the brief from within the textarea.
+promptInput.addEventListener("keydown", (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+    form.requestSubmit();
   }
 });
 
