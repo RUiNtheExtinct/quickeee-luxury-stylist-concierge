@@ -2,6 +2,12 @@
 
 An end-to-end Gen AI and data engineering assignment for a premium fashion concierge. The service scrapes apparel inventory, embeds the catalog, stores/searches it through a vector layer, and exposes a polished FastAPI + web console experience for outfit recommendations.
 
+## Demo
+
+![Quickeee walkthrough](docs/demo/quickeee-walkthrough.gif)
+
+▶️ **Full walkthrough (43s, MP4):** [`docs/demo/quickeee-walkthrough.mp4`](docs/demo/quickeee-walkthrough.mp4) — complex prompt → composed look → Engineer-mode agent trace + JSON, across three briefs with a gender switch.
+
 ## What It Does
 
 ![Quickeee atelier — the brief](docs/ui-empty.png)
@@ -149,5 +155,5 @@ tests/
 - Public GitHub repository
 - `ARCHITECTURE.md`
 - `SYSTEM_FLOW.md`
-- Demo walkthrough: [`docs/demo/quickeee-walkthrough.webm`](docs/demo/quickeee-walkthrough.webm) — complex prompt → composed look → Engineer-mode agent trace + JSON
+- Demo walkthrough: inline GIF preview above, plus full [`docs/demo/quickeee-walkthrough.mp4`](docs/demo/quickeee-walkthrough.mp4) — complex prompt → composed look → Engineer-mode agent trace + JSON
 - API endpoint demo: `POST /api/v1/style-me`
